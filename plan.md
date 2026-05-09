@@ -18,7 +18,7 @@
 - Attribute access: `obj.attr`
 - Unary operators: `-x`, `+x`, `not x`
 
-## To implement (Phase 2)
+## Implemented (Phase 2)
 
 **More expressions** 
 - Tuple literals: `(1, 2, 3)`

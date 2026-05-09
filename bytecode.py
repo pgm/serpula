@@ -48,6 +48,8 @@ OP_JMP_IF_TRUE = next_op()   # param: absolute byte offset
 OP_JMP_IF_FALSE = next_op()  # param: absolute byte offset
 OP_CALL = next_op()          # param: number of positional args
 OP_BUILD_LIST = next_op()    # param: number of elements
+OP_BUILD_TUPLE = next_op()   # param: number of elements
+OP_BUILD_SET = next_op()     # param: number of elements
 OP_BUILD_DICT = next_op()    # param: number of key-value pairs
 OP_FOR_ITER = next_op()      # param: constant-table index of loop-var name; pops iterator,
                              #        assigns next value to var and pushes True, or pushes False

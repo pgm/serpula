@@ -1,7 +1,19 @@
 import builtins as _builtins
 import struct
+from dataclasses import dataclass, field
+from typing import Optional
 
-from vm import VM
+@dataclass
+class Frame:
+    locals: dict = field(default_factory=dict)
+    dstack: list = field(default_factory=list)
+    prev_frame: Optional["Frame"] = None
+
+@dataclass
+class VM:
+    globals: dict = field(default_factory=dict)
+    frame: Frame = field(default_factory=Frame)
+
 from bytecode import (
     Executable,
     TWO_BYTE_PARAM, FOUR_BYTE_PARAM, LAST_NO_PARAM_OP,
@@ -9,10 +21,9 @@ from bytecode import (
     OP_GT, OP_LT, OP_GTE, OP_LTE, OP_EQ, OP_NE,
     OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_TERMINATE,
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
-    OP_CALL, OP_BUILD_LIST, OP_BUILD_DICT, OP_FOR_ITER,
+    OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
     OP_SUBSCRIPT, OP_GETATTR, OP_NEG, OP_POS, OP_NOT,
 )
-from typing import Optional
 
 def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
     vm = VM()
@@ -30,6 +41,7 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
         op = buf[pc]
         pc += 1
 
+        param: int = 0
         if op > LAST_NO_PARAM_OP:
             b = buf[pc]
             pc += 1
@@ -41,8 +53,6 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
                 pc += 4
             else:
                 param = b
-        else:
-            param = None
 
         if op == OP_TERMINATE:
             break
@@ -104,6 +114,12 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
         elif op == OP_BUILD_LIST:
             items = [dstack.pop() for _ in range(param)]
             dstack.append(items[::-1])
+        elif op == OP_BUILD_TUPLE:
+            items = [dstack.pop() for _ in range(param)]
+            dstack.append(tuple(items[::-1]))
+        elif op == OP_BUILD_SET:
+            items = [dstack.pop() for _ in range(param)]
+            dstack.append(set(items))
         elif op == OP_BUILD_DICT:
             pairs = [(dstack.pop(), dstack.pop()) for _ in range(param)]
             dstack.append({k: v for v, k in reversed(pairs)})

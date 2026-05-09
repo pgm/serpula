@@ -9,7 +9,7 @@ from bytecode import (
     OP_GT, OP_LT, OP_GTE, OP_LTE, OP_EQ, OP_NE,
     OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_TERMINATE,
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
-    OP_CALL, OP_BUILD_LIST, OP_BUILD_DICT, OP_FOR_ITER,
+    OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
     OP_SUBSCRIPT, OP_GETATTR, OP_NEG, OP_POS, OP_NOT,
 )
 
@@ -106,6 +106,16 @@ class Compiler:
             for elt in node.elts:
                 self.emit_expr(elt, block_idx)
             self._instr(block_idx, OP_BUILD_LIST, len(node.elts))
+        elif isinstance(node, ast.Tuple):
+            if not isinstance(node.ctx, ast.Load):
+                raise NotImplementedError("Only tuple literals in load context are supported")
+            for elt in node.elts:
+                self.emit_expr(elt, block_idx)
+            self._instr(block_idx, OP_BUILD_TUPLE, len(node.elts))
+        elif isinstance(node, ast.Set):
+            for elt in node.elts:
+                self.emit_expr(elt, block_idx)
+            self._instr(block_idx, OP_BUILD_SET, len(node.elts))
         elif isinstance(node, ast.Subscript):
             if not isinstance(node.ctx, ast.Load):
                 raise NotImplementedError("Only subscript in load context is supported")
