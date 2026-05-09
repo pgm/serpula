@@ -1,6 +1,10 @@
 # serpula
 
-A toy Python compiler targeting a custom stack-based bytecode VM. Compiles a subset of Python via the `ast` module into a flat bytecode buffer and executes it with a fetch-decode-execute loop.
+Serpula is an experimental scripting language implemented in Python. It is a strict subset of Python — any valid serpula program is also a valid Python program with identical semantics — with one deliberate exception: the `suspend` built-in, which has no Python equivalent.
+
+The core goal is a small, embeddable scripting language whose execution can be paused at an arbitrary point and resumed later, potentially in a completely different process. When a script calls `suspend(...)`, the VM halts and returns a `Runtime` object that captures the full execution state: bytecode, globals, frame locals, data stack, and program counter. That `Runtime` can be pickled to disk and unpickled elsewhere, then handed to `resume(runtime, value)` to continue running from exactly where it stopped.
+
+The implementation compiles Python source via the `ast` module into a flat bytecode buffer and executes it with a fetch-decode-execute loop, all in pure Python.
 
 ## Files
 
