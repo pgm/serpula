@@ -156,6 +156,16 @@ class Compiler:
                     self._instr('jmp_if_false' if is_and else 'jmp_if_true', end_label)
                     self._instr(OP_POP)
             self.emit_label(end_label)
+        elif isinstance(node, ast.IfExp):
+            else_label = self.alloc_label()
+            end_label = self.alloc_label()
+            self.emit_expr(node.test)
+            self._instr('jmp_if_false', else_label)
+            self.emit_expr(node.body)
+            self._instr('jmp', end_label)
+            self.emit_label(else_label)
+            self.emit_expr(node.orelse)
+            self.emit_label(end_label)
         elif isinstance(node, ast.ListComp):
             result_var = f"__comp_{self.comp_count}__"
             self.comp_count += 1

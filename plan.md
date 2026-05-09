@@ -31,12 +31,19 @@
 ## Implemented (Phase 3)
 - Boolean operators: `and`, `or`
 
-## To implement (Phase 3.2)
+## Implemented (Phase 3.2)
 - Conditional expression: `a if cond else b`
 
+## To implement (Phase 3.5)
 **Statements**
 - Augmented assignment: `x += 1`
+
+## To implement (Phase 3.6)
+**Statements**
 - Tuple unpacking: `a, b = 1, 2`
+
+## To implement (Phase 3.7)
+**Statements**
 - `assert`
 - `del`
 
