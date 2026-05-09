@@ -135,7 +135,8 @@ def execute(exe: Executable, globals: Optional[dict] = None, frame: Optional[Fra
             b = dstack.pop(); a = dstack.pop()
             dstack.append(a - b)
         elif op == OP_MUL:
-            dstack.append(dstack.pop() * dstack.pop())
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a * b)
         elif op == OP_DIV:
             b = dstack.pop(); a = dstack.pop()
             dstack.append(a / b)
@@ -155,11 +156,14 @@ def execute(exe: Executable, globals: Optional[dict] = None, frame: Optional[Fra
             b = dstack.pop(); a = dstack.pop()
             dstack.append(a >> b)
         elif op == OP_BITOR:
-            dstack.append(dstack.pop() | dstack.pop())
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a | b)
         elif op == OP_BITXOR:
-            dstack.append(dstack.pop() ^ dstack.pop())
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a ^ b)
         elif op == OP_BITAND:
-            dstack.append(dstack.pop() & dstack.pop())
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a & b)
         elif op == OP_GT:
             b = dstack.pop(); a = dstack.pop()
             dstack.append(a > b)
@@ -173,9 +177,11 @@ def execute(exe: Executable, globals: Optional[dict] = None, frame: Optional[Fra
             b = dstack.pop(); a = dstack.pop()
             dstack.append(a <= b)
         elif op == OP_EQ:
-            dstack.append(dstack.pop() == dstack.pop())
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a == b)
         elif op == OP_NE:
-            dstack.append(dstack.pop() != dstack.pop())
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a != b)
         elif op == OP_IS:
             b = dstack.pop(); a = dstack.pop()
             dstack.append(a is b)
