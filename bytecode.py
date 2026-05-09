@@ -82,11 +82,14 @@ class Writer:
         self.constants = {}
 
     def alloc_constant_index(self, value):
-        if value in self.constants:
-            return self.constants[value]
+        # Key by (type, value) so that 1 and True (which compare equal)
+        # get separate constant-table entries.
+        key = (type(value), value)
+        if key in self.constants:
+            return self.constants[key]
         else:
             i = len(self.constants)
-            self.constants[value] = i
+            self.constants[key] = i
             return i
 
     def add(self, op : int, param : Optional[int]):
@@ -97,7 +100,7 @@ class Writer:
             self.buffer.extend(struct.pack(">i", param))
 
     def get_executable(self):
-        return Executable(self.buffer, {i: v for v, i in self.constants.items()})
+        return Executable(self.buffer, {i: v for (_, v), i in self.constants.items()})
 
 class Reader:
     def __init__(self, buffer, pc):

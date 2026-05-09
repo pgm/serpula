@@ -125,20 +125,25 @@ Tests for the `suspend`/`resume` extension (see below).
 ### Built-in functions
 The following standard built-ins are available by default. The `__builtins__` entry in a `Runtime`'s globals dict is a plain `dict` (not the module), so callers can restrict or extend it freely.
 
-| | | | | | |
-|---|---|---|---|---|---|
-| `abs` | `all` | `any` | `ascii` | `bin` | `bool` |
-| `bytearray` | `bytes` | `callable` | `chr` | `complex` | `delattr` |
-| `dict` | `dir` | `divmod` | `enumerate` | `filter` | `float` |
-| `format` | `frozenset` | `getattr` | `hasattr` | `hash` | `hex` |
-| `id` | `input` | `int` | `isinstance` | `issubclass` | `iter` |
-| `len` | `list` | `map` | `max` | `memoryview` | `min` |
-| `next` | `object` | `oct` | `open` | `ord` | `pow` |
-| `print` | `property` | `range` | `repr` | `reversed` | `round` |
-| `set` | `setattr` | `slice` | `sorted` | `str` | `sum` |
-| `super` | `tuple` | `type` | `vars` | `zip` | |
+**Numeric** (`examples/builtins_numeric.py`):
+`abs`, `bool`, `complex`, `divmod`, `float`, `int`, `max`, `min`, `pow`, `round`, `sum`
 
-Constants: `NotImplemented`, `Ellipsis`, `__debug__`.
+**Strings & bytes** (`examples/builtins_strings.py`):
+`ascii`, `bin`, `bytearray`, `bytes`, `chr`, `format`, `hex`, `oct`, `ord`, `repr`, `str`
+
+**Collections** (`examples/builtins_collections.py`):
+`dict`, `enumerate`, `frozenset`, `len`, `list`, `range`, `reversed`, `set`, `slice`, `sorted`, `tuple`, `zip`
+
+**Iteration & functional** (`examples/builtins_iteration.py`):
+`all`, `any`, `filter`, `iter`, `map`, `next`
+
+**Introspection** (`examples/builtins_introspection.py`):
+`callable`, `getattr`, `hasattr`, `hash`, `id`, `isinstance`, `issubclass`, `object`, `type`
+
+**I/O & other** (not covered by automated examples):
+`delattr`, `dir`, `input`, `memoryview`, `open`, `print`, `property`, `setattr`, `super`, `vars`
+
+**Constants**: `NotImplemented`, `Ellipsis`, `__debug__`.
 
 All standard exceptions are also available (`Exception`, `ValueError`, `TypeError`, `AssertionError`, etc.).
 
