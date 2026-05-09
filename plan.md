@@ -54,7 +54,7 @@
   - `x.a.b = 2`
   - `a, b = 1, 2`
 
-## To implement (Phase 3.9)
+## Implemented (Phase 3.9)
 **Statements**
 - For loop with tuple target: `for i, j in pairs`
 

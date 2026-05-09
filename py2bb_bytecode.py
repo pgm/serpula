@@ -351,10 +351,13 @@ class Compiler:
             elif isinstance(stmt, ast.For):
                 if stmt.orelse:
                     raise NotImplementedError("for-else is not supported")
-                if not isinstance(stmt.target, ast.Name):
-                    raise NotImplementedError("Only simple name targets in for loops are supported")
                 iter_var = f"__iter_{self.iter_count}__"
                 self.iter_count += 1
+                if isinstance(stmt.target, ast.Name):
+                    target_var = stmt.target.id
+                else:
+                    target_var = f"__for_target_{self.iter_count}__"
+                    self.iter_count += 1
                 header_label = self.alloc_label()
                 exit_label = self.alloc_label()
                 self._instr('push_const', iter_var)
@@ -364,8 +367,12 @@ class Compiler:
                 self.emit_label(header_label)
                 self._instr('push_const', iter_var)
                 self._instr(OP_GET)
-                self._instr('for_iter', stmt.target.id)
+                self._instr('for_iter', target_var)
                 self._instr('jmp_if_false', exit_label)
+                if not isinstance(stmt.target, ast.Name):
+                    tv = target_var
+                    self.emit_assignment(stmt.target, lambda v=tv: (
+                        self._instr('push_const', v), self._instr(OP_GET)))
                 self.loop_stack.append((header_label, exit_label))
                 self.compile_stmts(stmt.body, header_label)
                 self.loop_stack.pop()
