@@ -7,7 +7,7 @@ from bytecode import (
     Executable,
     OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_FLOORDIV,
     OP_GT, OP_LT, OP_GTE, OP_LTE, OP_EQ, OP_NE,
-    OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_DUP, OP_TERMINATE,
+    OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_DUP, OP_RAISE, OP_DELETE_NAME, OP_TERMINATE,
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_MOD, OP_POW, OP_LSHIFT, OP_RSHIFT, OP_BITOR, OP_BITXOR, OP_BITAND,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
@@ -262,6 +262,25 @@ class Compiler:
                 self.emit_expr(stmt.value)
                 self._instr(BINOP_MAP[op_type])
                 self._instr(OP_STORE)
+            elif isinstance(stmt, ast.Assert):
+                end_label = self.alloc_label()
+                self.emit_expr(stmt.test)
+                self._instr('jmp_if_true', end_label)
+                self._instr('push_const', 'AssertionError')
+                self._instr(OP_GET)
+                if stmt.msg:
+                    self.emit_expr(stmt.msg)
+                    self._instr(OP_CALL, 1)
+                else:
+                    self._instr(OP_CALL, 0)
+                self._instr(OP_RAISE)
+                self.emit_label(end_label)
+            elif isinstance(stmt, ast.Delete):
+                for target in stmt.targets:
+                    if not isinstance(target, ast.Name):
+                        raise NotImplementedError("Only simple name targets are supported for del")
+                    self._instr('push_const', target.id)
+                    self._instr(OP_DELETE_NAME)
             elif isinstance(stmt, ast.Expr):
                 self.emit_expr(stmt.value)
                 self._instr(OP_POP)

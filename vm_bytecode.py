@@ -20,7 +20,7 @@ from bytecode import (
     OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_FLOORDIV,
     OP_MOD, OP_POW, OP_LSHIFT, OP_RSHIFT, OP_BITOR, OP_BITXOR, OP_BITAND,
     OP_GT, OP_LT, OP_GTE, OP_LTE, OP_EQ, OP_NE,
-    OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_DUP, OP_TERMINATE,
+    OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_DUP, OP_RAISE, OP_DELETE_NAME, OP_TERMINATE,
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
     OP_SUBSCRIPT, OP_GETATTR, OP_NEG, OP_POS, OP_NOT,
@@ -75,6 +75,10 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
             dstack.pop()
         elif op == OP_DUP:
             dstack.append(dstack[-1])
+        elif op == OP_RAISE:
+            raise dstack.pop()
+        elif op == OP_DELETE_NAME:
+            del locals_[dstack.pop()]
         elif op == OP_ADD:
             dstack.append(dstack.pop() + dstack.pop())
         elif op == OP_SUB:

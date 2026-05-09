@@ -38,14 +38,15 @@
 **Statements**
 - Augmented assignment: `x += 1`
 
-## To implement (Phase 3.6)
-**Statements**
-- Tuple unpacking: `a, b = 1, 2`
-
-## To implement (Phase 3.7)
+## Implemented (Phase 3.6)
 **Statements**
 - `assert`
 - `del`
+
+## To implement (Phase 3.7)
+**Statements**
+- Tuple unpacking: `a, b = 1, 2`
+
 
 ## To implement (Phase 4)
 - For loop with tuple target: `for i, j in pairs`
