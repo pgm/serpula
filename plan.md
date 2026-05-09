@@ -34,7 +34,7 @@
 ## Implemented (Phase 3.2)
 - Conditional expression: `a if cond else b`
 
-## To implement (Phase 3.5)
+## Implemented (Phase 3.5)
 **Statements**
 - Augmented assignment: `x += 1`
 

@@ -249,6 +249,19 @@ class Compiler:
                 self._instr('push_const', stmt.targets[0].id)
                 self.emit_expr(stmt.value)
                 self._instr(OP_STORE)
+            elif isinstance(stmt, ast.AugAssign):
+                if not isinstance(stmt.target, ast.Name):
+                    raise NotImplementedError("Only simple name targets are supported for augmented assignment")
+                op_type = type(stmt.op)
+                if op_type not in BINOP_MAP:
+                    raise NotImplementedError(f"Unsupported augmented assignment operator: {op_type.__name__}")
+                name = stmt.target.id
+                self._instr('push_const', name)  # for store
+                self._instr('push_const', name)  # for load
+                self._instr(OP_GET)
+                self.emit_expr(stmt.value)
+                self._instr(BINOP_MAP[op_type])
+                self._instr(OP_STORE)
             elif isinstance(stmt, ast.Expr):
                 self.emit_expr(stmt.value)
                 self._instr(OP_POP)
