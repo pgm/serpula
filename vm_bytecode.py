@@ -23,7 +23,7 @@ from bytecode import (
     OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_DUP, OP_RAISE, OP_DELETE_NAME, OP_TERMINATE,
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
-    OP_SUBSCRIPT, OP_GETATTR, OP_NEG, OP_POS, OP_NOT,
+    OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
 )
 
 def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
@@ -156,9 +156,15 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
         elif op == OP_SUBSCRIPT:
             key = dstack.pop()
             dstack.append(dstack.pop()[key])
+        elif op == OP_STORE_SUBSCRIPT:
+            value = dstack.pop(); key = dstack.pop(); container = dstack.pop()
+            container[key] = value
         elif op == OP_GETATTR:
             name = dstack.pop()
             dstack.append(getattr(dstack.pop(), name))
+        elif op == OP_STORE_ATTR:
+            value = dstack.pop(); name = dstack.pop(); obj = dstack.pop()
+            setattr(obj, name, value)
         elif op == OP_NEG:
             dstack.append(-dstack.pop())
         elif op == OP_POS:

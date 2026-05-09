@@ -11,7 +11,7 @@ from bytecode import (
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_MOD, OP_POW, OP_LSHIFT, OP_RSHIFT, OP_BITOR, OP_BITXOR, OP_BITAND,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
-    OP_SUBSCRIPT, OP_GETATTR, OP_NEG, OP_POS, OP_NOT,
+    OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
 )
 
 BINOP_MAP = {
@@ -242,14 +242,55 @@ class Compiler:
         self._instr('jmp', header_label)
         self.emit_label(exit_label)
 
+    def emit_assignment(self, target: ast.expr, emit_value):
+        """Emit code to store a value into target. emit_value() pushes the value onto the stack."""
+        if isinstance(target, ast.Name):
+            self._instr('push_const', target.id)
+            emit_value()
+            self._instr(OP_STORE)
+        elif isinstance(target, ast.Subscript):
+            self.emit_expr(target.value)
+            self.emit_expr(target.slice)
+            emit_value()
+            self._instr(OP_STORE_SUBSCRIPT)
+        elif isinstance(target, ast.Attribute):
+            self.emit_expr(target.value)
+            self._instr('push_const', target.attr)
+            emit_value()
+            self._instr(OP_STORE_ATTR)
+        elif isinstance(target, (ast.Tuple, ast.List)):
+            temp_var = f"__unpack_{self.iter_count}__"
+            self.iter_count += 1
+            self._instr('push_const', temp_var)
+            emit_value()
+            self._instr(OP_STORE)
+            for i, elt in enumerate(target.elts):
+                idx = i
+                self.emit_assignment(elt, lambda i=idx, v=temp_var: (
+                    self._instr('push_const', v),
+                    self._instr(OP_GET),
+                    self._instr('push_const', i),
+                    self._instr(OP_SUBSCRIPT),
+                ))
+        else:
+            raise NotImplementedError(f"Unsupported assignment target: {type(target).__name__}")
+
     def compile_stmts(self, stmts: list[ast.stmt], fallthrough_label: int):
         for stmt in stmts:
             if isinstance(stmt, ast.Assign):
-                if len(stmt.targets) != 1 or not isinstance(stmt.targets[0], ast.Name):
-                    raise NotImplementedError("Only simple single-name assignments are supported")
-                self._instr('push_const', stmt.targets[0].id)
-                self.emit_expr(stmt.value)
-                self._instr(OP_STORE)
+                # Evaluate value once into a temp if there are multiple targets
+                if len(stmt.targets) > 1:
+                    temp_var = f"__assign_{self.iter_count}__"
+                    self.iter_count += 1
+                    self._instr('push_const', temp_var)
+                    self.emit_expr(stmt.value)
+                    self._instr(OP_STORE)
+                    for target in stmt.targets:
+                        self.emit_assignment(target, lambda v=temp_var: (
+                            self._instr('push_const', v), self._instr(OP_GET)))
+                else:
+                    value_node = stmt.value
+                    self.emit_assignment(stmt.targets[0], lambda v=value_node: self.emit_expr(v))
             elif isinstance(stmt, ast.AugAssign):
                 if not isinstance(stmt.target, ast.Name):
                     raise NotImplementedError("Only simple name targets are supported for augmented assignment")

@@ -43,11 +43,13 @@ OP_DUP = next_op()         # duplicates TOS
 OP_RAISE = next_op()       # pops TOS and raises it as an exception
 OP_DELETE_NAME = next_op() # pops name, deletes from locals
 OP_TERMINATE = next_op()
-OP_SUBSCRIPT = next_op() # pops key then container, pushes container[key]
-OP_GETATTR = next_op()   # pops name then obj, pushes getattr(obj, name)
-OP_NEG = next_op()       # pops x, pushes -x
-OP_POS = next_op()       # pops x, pushes +x
-OP_NOT = next_op()       # pops x, pushes not x
+OP_SUBSCRIPT = next_op()       # pops key then container, pushes container[key]
+OP_STORE_SUBSCRIPT = next_op() # pops value, key, container; does container[key] = value
+OP_GETATTR = next_op()         # pops name then obj, pushes getattr(obj, name)
+OP_STORE_ATTR = next_op()      # pops value, name, obj; does setattr(obj, name, value)
+OP_NEG = next_op()             # pops x, pushes -x
+OP_POS = next_op()             # pops x, pushes +x
+OP_NOT = next_op()             # pops x, pushes not x
 
 # ops below here have a parameter
 LAST_NO_PARAM_OP = OP_NOT

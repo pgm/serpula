@@ -46,7 +46,7 @@
 ## Implemented (Phase 3.7)
 - `break` and `continue`
 
-## To implement (Phase 3.8)
+## Implemented (Phase 3.8)
 **More L-values**
 - assignments like: 
   - `x[0] = 1` 
