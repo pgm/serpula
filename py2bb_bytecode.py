@@ -61,6 +61,7 @@ class Compiler:
         self.next_label = 0
         self.iter_count = 0
         self.comp_count = 0
+        self.loop_stack: list[tuple[int, int]] = []  # (header_label, exit_label)
 
     def alloc_label(self) -> int:
         label = self.next_label
@@ -302,7 +303,9 @@ class Compiler:
                 self.emit_label(header_label)
                 self.emit_expr(stmt.test)
                 self._instr('jmp_if_false', exit_label)
+                self.loop_stack.append((header_label, exit_label))
                 self.compile_stmts(stmt.body, header_label)
+                self.loop_stack.pop()
                 self.emit_label(exit_label)
             elif isinstance(stmt, ast.For):
                 if stmt.orelse:
@@ -322,8 +325,18 @@ class Compiler:
                 self._instr(OP_GET)
                 self._instr('for_iter', stmt.target.id)
                 self._instr('jmp_if_false', exit_label)
+                self.loop_stack.append((header_label, exit_label))
                 self.compile_stmts(stmt.body, header_label)
+                self.loop_stack.pop()
                 self.emit_label(exit_label)
+            elif isinstance(stmt, ast.Break):
+                if not self.loop_stack:
+                    raise SyntaxError("break outside loop")
+                self._instr('jmp', self.loop_stack[-1][1])
+            elif isinstance(stmt, ast.Continue):
+                if not self.loop_stack:
+                    raise SyntaxError("continue outside loop")
+                self._instr('jmp', self.loop_stack[-1][0])
             else:
                 raise NotImplementedError(f"Unsupported statement: {type(stmt).__name__}")
         self._instr('jmp', fallthrough_label)

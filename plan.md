@@ -43,14 +43,20 @@
 - `assert`
 - `del`
 
-## To implement (Phase 3.7)
-**Statements**
-- Tuple unpacking: `a, b = 1, 2`
-
-
-## To implement (Phase 4)
-- For loop with tuple target: `for i, j in pairs`
+## Implemented (Phase 3.7)
 - `break` and `continue`
+
+## To implement (Phase 3.8)
+**More L-values**
+- assignments like: 
+  - `x[0] = 1` 
+  - `x.b = 1`
+  - `x.a.b = 2`
+  - `a, b = 1, 2`
+
+## To implement (Phase 3.9)
+**Statements**
+- For loop with tuple target: `for i, j in pairs`
 
 ## To implement (Phase 5)
 - `def` (function definitions)
@@ -63,8 +69,6 @@
 ## To implement (Phase 7)
 - Keyword and star args in calls: `f(x, key=val)`, `f(*args, **kwargs)`
 - Lambda: `lambda x: x + 1`
-
-
 
 ## Will not implement
 - Chained comparisons: `1 < x < 10`
