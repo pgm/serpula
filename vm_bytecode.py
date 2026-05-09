@@ -10,12 +10,6 @@ class Frame:
     prev_frame: Optional["Frame"] = None
     global_names: set = field(default_factory=set)
 
-@dataclass
-class VM:
-    globals: dict = field(default_factory=dict)
-    frame: Frame = field(default_factory=Frame)
-    return_value: object = None
-
 from bytecode import (
     Executable,
     TWO_BYTE_PARAM, FOUR_BYTE_PARAM, LAST_NO_PARAM_OP,
@@ -26,8 +20,19 @@ from bytecode import (
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
     OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
-    OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION,
+    OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION, OP_SUSPEND,
 )
+
+@dataclass
+class Runtime:
+    exe: Executable
+    globals: dict = field(default_factory=dict)
+    frame: Frame = field(default_factory=Frame)
+    pc: int = 0
+    suspended: bool = False
+    suspend_value: object = None
+    return_value: object = None
+
 
 class FunctionSpec:
     """Compiled function body + metadata; stored in the constant table."""
@@ -57,26 +62,22 @@ class MiniPyFunction:
         frame = Frame(global_names=self.spec.global_names)
         for name, val in zip(self.spec.params, args):
             frame.locals[name] = val
-        vm = execute(self.spec.exe, globals=self.globals_dict, frame=frame)
-        return vm.return_value
+        runtime = Runtime(exe=self.spec.exe, globals=self.globals_dict, frame=frame)
+        result = execute(runtime)
+        if result.suspended:
+            raise RuntimeError("suspend inside a nested function call is not supported")
+        return result.return_value
 
-def execute(exe: Executable, globals: Optional[dict] = None, frame: Optional[Frame] = None) -> VM:
-    vm = VM()
-    if globals is not None:
-        vm.globals = globals  # share the dict so mutations are visible to callers
-    if frame is not None:
-        vm.frame = frame
-    else:
-        vm.frame.locals = vm.globals  # at module level, locals IS globals
-    buf = exe.buffer
-    constants = exe.constants  # already {index: value}
-    dstack = vm.frame.dstack
-    locals_ = vm.frame.locals
 
-    pc = 0
+def execute(runtime: Runtime) -> Runtime:
+    runtime.suspended = False
+    buf = runtime.exe.buffer
+    constants = runtime.exe.constants  # already {index: value}
+    dstack = runtime.frame.dstack
+    locals_ = runtime.frame.locals
+
+    pc = runtime.pc
     while True:
-        assert isinstance(buf, bytes)
-        assert isinstance(pc, int)
         op = buf[pc]
         pc += 1
 
@@ -96,28 +97,34 @@ def execute(exe: Executable, globals: Optional[dict] = None, frame: Optional[Fra
         if op == OP_TERMINATE:
             break
         elif op == OP_RETURN:
-            vm.return_value = dstack.pop()
+            runtime.return_value = dstack.pop()
+            break
+        elif op == OP_SUSPEND:
+            args = [dstack.pop() for _ in range(param)]
+            args.reverse()
+            runtime.suspend_value = tuple(args)
+            runtime.suspended = True
             break
         elif op == OP_PUSH_CONST:
             dstack.append(constants[param])
         elif op == OP_GET:
             name = dstack.pop()
-            if name in vm.frame.global_names:
-                if name in vm.globals:
-                    dstack.append(vm.globals[name])
+            if name in runtime.frame.global_names:
+                if name in runtime.globals:
+                    dstack.append(runtime.globals[name])
                 else:
                     dstack.append(getattr(_builtins, name))
             elif name in locals_:
                 dstack.append(locals_[name])
-            elif name in vm.globals:
-                dstack.append(vm.globals[name])
+            elif name in runtime.globals:
+                dstack.append(runtime.globals[name])
             else:
                 dstack.append(getattr(_builtins, name))
         elif op == OP_STORE:
             value = dstack.pop()
             name = dstack.pop()
-            if name in vm.frame.global_names:
-                vm.globals[name] = value
+            if name in runtime.frame.global_names:
+                runtime.globals[name] = value
             else:
                 locals_[name] = value
         elif op == OP_POP:
@@ -244,8 +251,16 @@ def execute(exe: Executable, globals: Optional[dict] = None, frame: Optional[Fra
         elif op == OP_MAKE_FUNCTION:
             spec = constants[param]
             assert isinstance(spec, FunctionSpec)
-            dstack.append(MiniPyFunction(spec, vm.globals))
+            dstack.append(MiniPyFunction(spec, runtime.globals))
         else:
             raise RuntimeError(f"Unknown opcode {op} at pc={pc - 1}")
 
-    return vm
+    runtime.pc = pc
+    return runtime
+
+
+def resume(runtime: Runtime, value: object) -> Runtime:
+    if not runtime.suspended:
+        raise RuntimeError("cannot resume a runtime that is not suspended")
+    runtime.frame.dstack.append(value)
+    return execute(runtime)

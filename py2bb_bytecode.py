@@ -12,7 +12,7 @@ from bytecode import (
     OP_MOD, OP_POW, OP_LSHIFT, OP_RSHIFT, OP_BITOR, OP_BITXOR, OP_BITAND,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
     OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
-    OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION,
+    OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION, OP_SUSPEND,
 )
 from vm_bytecode import FunctionSpec
 
@@ -120,10 +120,15 @@ class Compiler:
                 raise NotImplementedError("Keyword arguments are not supported")
             if any(isinstance(a, ast.Starred) for a in node.args):
                 raise NotImplementedError("Star arguments are not supported")
-            self.emit_expr(node.func)
-            for arg in node.args:
-                self.emit_expr(arg)
-            self._instr(OP_CALL, len(node.args))
+            if isinstance(node.func, ast.Name) and node.func.id == 'suspend':
+                for arg in node.args:
+                    self.emit_expr(arg)
+                self._instr(OP_SUSPEND, len(node.args))
+            else:
+                self.emit_expr(node.func)
+                for arg in node.args:
+                    self.emit_expr(arg)
+                self._instr(OP_CALL, len(node.args))
         elif isinstance(node, ast.Dict):
             if any(k is None for k in node.keys):
                 raise NotImplementedError("Dict unpacking (**) is not supported")

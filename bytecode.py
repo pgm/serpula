@@ -69,6 +69,7 @@ OP_BUILD_DICT = next_op()    # param: number of key-value pairs
 OP_FOR_ITER = next_op()      # param: constant-table index of loop-var name; pops iterator,
                              #        assigns next value to var and pushes True, or pushes False
 OP_MAKE_FUNCTION = next_op() # param: constant-table index of FunctionSpec; pushes callable
+OP_SUSPEND = next_op()       # param: number of args; pops args into tuple, suspends execution
 
 class Executable:
     def __init__(self, buffer, constants  : dict[int, object]):
