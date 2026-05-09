@@ -24,15 +24,16 @@
 - Tuple literals: `(1, 2, 3)`
 - Set literals: `{1, 2, 3}`
 
-## To implement (Phase 2.1)
+## Implemented (Phase 2.1)
 - Comprehensions: `[x for x in y]`, `{k: v for ...}`
-- Conditional expression: `a if cond else b`
+- Also added remaining binary ops: `%`, `**`, `<<`, `>>`, `|`, `^`, `&`
 
 ## To implement (Phase 3)
+- Conditional expression: `a if cond else b`
 - Boolean operators: `and`, `or`
 - Chained comparisons: `1 < x < 10`
 
-## To implement (Phase 3)
+## To implement (Phase 3.1)
 
 **Statements**
 - Augmented assignment: `x += 1`

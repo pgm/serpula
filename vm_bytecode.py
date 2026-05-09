@@ -18,6 +18,7 @@ from bytecode import (
     Executable,
     TWO_BYTE_PARAM, FOUR_BYTE_PARAM, LAST_NO_PARAM_OP,
     OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_FLOORDIV,
+    OP_MOD, OP_POW, OP_LSHIFT, OP_RSHIFT, OP_BITOR, OP_BITXOR, OP_BITAND,
     OP_GT, OP_LT, OP_GTE, OP_LTE, OP_EQ, OP_NE,
     OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_TERMINATE,
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
@@ -85,6 +86,24 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
         elif op == OP_FLOORDIV:
             b = dstack.pop(); a = dstack.pop()
             dstack.append(a // b)
+        elif op == OP_MOD:
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a % b)
+        elif op == OP_POW:
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a ** b)
+        elif op == OP_LSHIFT:
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a << b)
+        elif op == OP_RSHIFT:
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a >> b)
+        elif op == OP_BITOR:
+            dstack.append(dstack.pop() | dstack.pop())
+        elif op == OP_BITXOR:
+            dstack.append(dstack.pop() ^ dstack.pop())
+        elif op == OP_BITAND:
+            dstack.append(dstack.pop() & dstack.pop())
         elif op == OP_GT:
             b = dstack.pop(); a = dstack.pop()
             dstack.append(a > b)
