@@ -58,10 +58,11 @@
 **Statements**
 - For loop with tuple target: `for i, j in pairs`
 
-## To implement (Phase 5)
+## Implemented (Phase 5)
 - `def` (function definitions)
-- `global` / `nonlocal`
+- `global` (nonlocal raises NotImplementedError)
 - `return` (function bodies)
+- Also added: `is` / `is not` comparison operators
 
 ## Implemented
 

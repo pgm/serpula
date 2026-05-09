@@ -50,9 +50,12 @@ OP_STORE_ATTR = next_op()      # pops value, name, obj; does setattr(obj, name, 
 OP_NEG = next_op()             # pops x, pushes -x
 OP_POS = next_op()             # pops x, pushes +x
 OP_NOT = next_op()             # pops x, pushes not x
+OP_IS = next_op()              # pops b then a, pushes a is b
+OP_IS_NOT = next_op()          # pops b then a, pushes a is not b
+OP_RETURN = next_op()          # pops TOS and returns it from current function
 
 # ops below here have a parameter
-LAST_NO_PARAM_OP = OP_NOT
+LAST_NO_PARAM_OP = OP_RETURN
 
 OP_PUSH_CONST = next_op()    # param: constant-table index
 OP_JMP = next_op()           # param: absolute byte offset
@@ -65,6 +68,7 @@ OP_BUILD_SET = next_op()     # param: number of elements
 OP_BUILD_DICT = next_op()    # param: number of key-value pairs
 OP_FOR_ITER = next_op()      # param: constant-table index of loop-var name; pops iterator,
                              #        assigns next value to var and pushes True, or pushes False
+OP_MAKE_FUNCTION = next_op() # param: constant-table index of FunctionSpec; pushes callable
 
 class Executable:
     def __init__(self, buffer, constants  : dict[int, object]):

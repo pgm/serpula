@@ -12,7 +12,9 @@ from bytecode import (
     OP_MOD, OP_POW, OP_LSHIFT, OP_RSHIFT, OP_BITOR, OP_BITXOR, OP_BITAND,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
     OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
+    OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION,
 )
+from vm_bytecode import FunctionSpec
 
 BINOP_MAP = {
     ast.Add: OP_ADD,
@@ -36,6 +38,8 @@ CMP_MAP = {
     ast.LtE: OP_LTE,
     ast.Eq: OP_EQ,
     ast.NotEq: OP_NE,
+    ast.Is: OP_IS,
+    ast.IsNot: OP_IS_NOT,
 }
 
 UNARY_MAP = {
@@ -43,6 +47,21 @@ UNARY_MAP = {
     ast.UAdd: OP_POS,
     ast.Not: OP_NOT,
 }
+
+def _collect_globals(stmts: list[ast.stmt]) -> set[str]:
+    """Collect all names declared global in stmts (non-recursively into nested defs)."""
+    names: set[str] = set()
+    for stmt in stmts:
+        if isinstance(stmt, ast.Global):
+            names.update(stmt.names)
+        elif isinstance(stmt, ast.If):
+            names.update(_collect_globals(stmt.body))
+            names.update(_collect_globals(stmt.orelse))
+        elif isinstance(stmt, (ast.While, ast.For)):
+            names.update(_collect_globals(stmt.body))
+        # Do not recurse into nested FunctionDef bodies
+    return names
+
 
 # Flat linear IR emitted into self.ir before bytecode generation:
 #   ('label', label_id)            — marks a branch target; no bytecode emitted
@@ -390,6 +409,35 @@ class Compiler:
                 if not self.loop_stack:
                     raise SyntaxError("continue outside loop")
                 self._instr('jmp', self.loop_stack[-1][0])
+            elif isinstance(stmt, ast.FunctionDef):
+                if stmt.decorator_list:
+                    raise NotImplementedError("Decorators are not supported")
+                args = stmt.args
+                if args.vararg or args.kwarg or args.kwonlyargs or args.defaults or args.kw_defaults:
+                    raise NotImplementedError("Only simple positional parameters are supported")
+                params = [arg.arg for arg in args.args]
+                global_names = _collect_globals(stmt.body)
+                func_compiler = Compiler()
+                func_terminate_label = func_compiler.alloc_label()
+                func_compiler.compile_stmts(stmt.body, func_terminate_label)
+                func_compiler.emit_label(func_terminate_label)
+                func_compiler._instr('push_const', None)
+                func_compiler._instr(OP_RETURN)
+                func_exe = emit_bytecode(func_compiler)
+                spec = FunctionSpec(func_exe, params, global_names)
+                self._instr('push_const', stmt.name)
+                self._instr('make_function', spec)
+                self._instr(OP_STORE)
+            elif isinstance(stmt, ast.Return):
+                if stmt.value is not None:
+                    self.emit_expr(stmt.value)
+                else:
+                    self._instr('push_const', None)
+                self._instr(OP_RETURN)
+            elif isinstance(stmt, ast.Global):
+                pass  # names already collected at FunctionDef compilation time
+            elif isinstance(stmt, ast.Nonlocal):
+                raise NotImplementedError("nonlocal is not supported")
             else:
                 raise NotImplementedError(f"Unsupported statement: {type(stmt).__name__}")
         self._instr('jmp', fallthrough_label)
@@ -414,6 +462,8 @@ def emit_bytecode(compiler: Compiler) -> Executable:
             writer.add(OP_PUSH_CONST, writer.alloc_constant_index(instr[1]))
         elif op == 'for_iter':
             writer.add(OP_FOR_ITER, writer.alloc_constant_index(instr[1]))
+        elif op == 'make_function':
+            writer.add(OP_MAKE_FUNCTION, writer.alloc_constant_index(instr[1]))
         elif op in ('jmp', 'jmp_if_true', 'jmp_if_false'):
             real_op = {'jmp': OP_JMP, 'jmp_if_true': OP_JMP_IF_TRUE, 'jmp_if_false': OP_JMP_IF_FALSE}[op]
             patch_list.append((len(writer.buffer) + 2, instr[1]))

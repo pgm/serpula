@@ -8,11 +8,13 @@ class Frame:
     locals: dict = field(default_factory=dict)
     dstack: list = field(default_factory=list)
     prev_frame: Optional["Frame"] = None
+    global_names: set = field(default_factory=set)
 
 @dataclass
 class VM:
     globals: dict = field(default_factory=dict)
     frame: Frame = field(default_factory=Frame)
+    return_value: object = None
 
 from bytecode import (
     Executable,
@@ -24,12 +26,48 @@ from bytecode import (
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
     OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
+    OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION,
 )
 
-def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
+class FunctionSpec:
+    """Compiled function body + metadata; stored in the constant table."""
+    def __init__(self, exe: Executable, params: list[str], global_names: set[str]):
+        self.exe = exe
+        self.params = params
+        self.global_names = global_names
+
+    # FunctionSpec objects are used as constant-table keys via identity.
+    def __hash__(self):
+        return id(self)
+
+    def __eq__(self, other):
+        return self is other
+
+
+class MiniPyFunction:
+    def __init__(self, spec: FunctionSpec, globals_dict: dict):
+        self.spec = spec
+        self.globals_dict = globals_dict
+
+    def __call__(self, *args):
+        if len(args) != len(self.spec.params):
+            raise TypeError(
+                f"expected {len(self.spec.params)} arguments, got {len(args)}"
+            )
+        frame = Frame(global_names=self.spec.global_names)
+        for name, val in zip(self.spec.params, args):
+            frame.locals[name] = val
+        vm = execute(self.spec.exe, globals=self.globals_dict, frame=frame)
+        return vm.return_value
+
+def execute(exe: Executable, globals: Optional[dict] = None, frame: Optional[Frame] = None) -> VM:
     vm = VM()
-    if globals:
-        vm.globals.update(globals)
+    if globals is not None:
+        vm.globals = globals  # share the dict so mutations are visible to callers
+    if frame is not None:
+        vm.frame = frame
+    else:
+        vm.frame.locals = vm.globals  # at module level, locals IS globals
     buf = exe.buffer
     constants = exe.constants  # already {index: value}
     dstack = vm.frame.dstack
@@ -57,11 +95,19 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
 
         if op == OP_TERMINATE:
             break
+        elif op == OP_RETURN:
+            vm.return_value = dstack.pop()
+            break
         elif op == OP_PUSH_CONST:
             dstack.append(constants[param])
         elif op == OP_GET:
             name = dstack.pop()
-            if name in locals_:
+            if name in vm.frame.global_names:
+                if name in vm.globals:
+                    dstack.append(vm.globals[name])
+                else:
+                    dstack.append(getattr(_builtins, name))
+            elif name in locals_:
                 dstack.append(locals_[name])
             elif name in vm.globals:
                 dstack.append(vm.globals[name])
@@ -70,7 +116,10 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
         elif op == OP_STORE:
             value = dstack.pop()
             name = dstack.pop()
-            locals_[name] = value
+            if name in vm.frame.global_names:
+                vm.globals[name] = value
+            else:
+                locals_[name] = value
         elif op == OP_POP:
             dstack.pop()
         elif op == OP_DUP:
@@ -80,7 +129,8 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
         elif op == OP_DELETE_NAME:
             del locals_[dstack.pop()]
         elif op == OP_ADD:
-            dstack.append(dstack.pop() + dstack.pop())
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a + b)
         elif op == OP_SUB:
             b = dstack.pop(); a = dstack.pop()
             dstack.append(a - b)
@@ -126,6 +176,12 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
             dstack.append(dstack.pop() == dstack.pop())
         elif op == OP_NE:
             dstack.append(dstack.pop() != dstack.pop())
+        elif op == OP_IS:
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a is b)
+        elif op == OP_IS_NOT:
+            b = dstack.pop(); a = dstack.pop()
+            dstack.append(a is not b)
         elif op == OP_GET_ITER:
             dstack.append(iter(dstack.pop()))
         elif op == OP_FOR_ITER:
@@ -179,6 +235,10 @@ def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
         elif op == OP_JMP_IF_FALSE:
             if not dstack.pop():
                 pc = param
+        elif op == OP_MAKE_FUNCTION:
+            spec = constants[param]
+            assert isinstance(spec, FunctionSpec)
+            dstack.append(MiniPyFunction(spec, vm.globals))
         else:
             raise RuntimeError(f"Unknown opcode {op} at pc={pc - 1}")
 
