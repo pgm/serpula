@@ -10,6 +10,7 @@ from bytecode import (
     OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_TERMINATE,
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_DICT, OP_FOR_ITER,
+    OP_SUBSCRIPT, OP_GETATTR, OP_NEG, OP_POS, OP_NOT,
 )
 
 BINOP_MAP = {
@@ -27,6 +28,12 @@ CMP_MAP = {
     ast.LtE: OP_LTE,
     ast.Eq: OP_EQ,
     ast.NotEq: OP_NE,
+}
+
+UNARY_MAP = {
+    ast.USub: OP_NEG,
+    ast.UAdd: OP_POS,
+    ast.Not: OP_NOT,
 }
 
 # Abstract instruction format used before bytecode emission:
@@ -99,6 +106,24 @@ class Compiler:
             for elt in node.elts:
                 self.emit_expr(elt, block_idx)
             self._instr(block_idx, OP_BUILD_LIST, len(node.elts))
+        elif isinstance(node, ast.Subscript):
+            if not isinstance(node.ctx, ast.Load):
+                raise NotImplementedError("Only subscript in load context is supported")
+            self.emit_expr(node.value, block_idx)
+            self.emit_expr(node.slice, block_idx)
+            self._instr(block_idx, OP_SUBSCRIPT)
+        elif isinstance(node, ast.Attribute):
+            if not isinstance(node.ctx, ast.Load):
+                raise NotImplementedError("Only attribute access in load context is supported")
+            self.emit_expr(node.value, block_idx)
+            self._instr(block_idx, 'push_const', node.attr)
+            self._instr(block_idx, OP_GETATTR)
+        elif isinstance(node, ast.UnaryOp):
+            op_type = type(node.op)
+            if op_type not in UNARY_MAP:
+                raise NotImplementedError(f"Unsupported unary operator: {op_type.__name__}")
+            self.emit_expr(node.operand, block_idx)
+            self._instr(block_idx, UNARY_MAP[op_type])
         else:
             raise NotImplementedError(f"Unsupported expression: {type(node).__name__}")
 

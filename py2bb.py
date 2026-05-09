@@ -9,6 +9,12 @@ BINOP_MAP = {
     ast.FloorDiv: "floordiv",
 }
 
+UNARY_MAP = {
+    ast.USub: "neg",
+    ast.UAdd: "pos",
+    ast.Not: "not_",
+}
+
 CMP_MAP = {
     ast.Gt: "gt_cmp",
     ast.Lt: "lt_cmp",
@@ -76,6 +82,24 @@ class Compiler:
             for elt in node.elts:
                 self.emit_expr(elt, lines)
             lines.append(f"    vm.build_list({len(node.elts)})")
+        elif isinstance(node, ast.Subscript):
+            if not isinstance(node.ctx, ast.Load):
+                raise NotImplementedError("Only subscript in load context is supported")
+            self.emit_expr(node.value, lines)
+            self.emit_expr(node.slice, lines)
+            lines.append(f"    vm.subscript()")
+        elif isinstance(node, ast.Attribute):
+            if not isinstance(node.ctx, ast.Load):
+                raise NotImplementedError("Only attribute access in load context is supported")
+            self.emit_expr(node.value, lines)
+            lines.append(f"    vm.dpush({repr(node.attr)})")
+            lines.append(f"    vm.getattr_()")
+        elif isinstance(node, ast.UnaryOp):
+            op_type = type(node.op)
+            if op_type not in UNARY_MAP:
+                raise NotImplementedError(f"Unsupported unary operator: {op_type.__name__}")
+            self.emit_expr(node.operand, lines)
+            lines.append(f"    vm.{UNARY_MAP[op_type]}()")
         else:
             raise NotImplementedError(f"Unsupported expression: {type(node).__name__}")
 

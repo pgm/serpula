@@ -10,10 +10,11 @@ from bytecode import (
     OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_TERMINATE,
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_DICT, OP_FOR_ITER,
+    OP_SUBSCRIPT, OP_GETATTR, OP_NEG, OP_POS, OP_NOT,
 )
+from typing import Optional
 
-
-def execute(exe: Executable, globals: dict = None) -> VM:
+def execute(exe: Executable, globals: Optional[dict] = None) -> VM:
     vm = VM()
     if globals:
         vm.globals.update(globals)
@@ -24,6 +25,8 @@ def execute(exe: Executable, globals: dict = None) -> VM:
 
     pc = 0
     while True:
+        assert isinstance(buf, bytes)
+        assert isinstance(pc, int)
         op = buf[pc]
         pc += 1
 
@@ -109,6 +112,18 @@ def execute(exe: Executable, globals: dict = None) -> VM:
             args.reverse()
             func = dstack.pop()
             dstack.append(func(*args))
+        elif op == OP_SUBSCRIPT:
+            key = dstack.pop()
+            dstack.append(dstack.pop()[key])
+        elif op == OP_GETATTR:
+            name = dstack.pop()
+            dstack.append(getattr(dstack.pop(), name))
+        elif op == OP_NEG:
+            dstack.append(-dstack.pop())
+        elif op == OP_POS:
+            dstack.append(+dstack.pop())
+        elif op == OP_NOT:
+            dstack.append(not dstack.pop())
         elif op == OP_JMP:
             pc = param
         elif op == OP_JMP_IF_TRUE:

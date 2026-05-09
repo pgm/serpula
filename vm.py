@@ -62,6 +62,25 @@ class VM:
         except StopIteration:
             self.dpush(False)
 
+    def subscript(self):
+        key = self.dpop()
+        container = self.dpop()
+        self.dpush(container[key])
+
+    def getattr_(self):
+        name = self.dpop()
+        obj = self.dpop()
+        self.dpush(getattr(obj, name))
+
+    def neg(self):
+        self.dpush(-self.dpop())
+
+    def pos(self):
+        self.dpush(+self.dpop())
+
+    def not_(self):
+        self.dpush(not self.dpop())
+
     def build_list(self, n):
         items = [self.dpop() for _ in range(n)]
         self.dpush(items[::-1])

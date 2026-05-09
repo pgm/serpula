@@ -33,9 +33,14 @@ OP_GET = next_op()      # pops name, pushes value (locals → globals → builti
 OP_GET_ITER = next_op() # pops iterable, pushes iterator
 OP_POP = next_op()      # discards TOS
 OP_TERMINATE = next_op()
+OP_SUBSCRIPT = next_op() # pops key then container, pushes container[key]
+OP_GETATTR = next_op()   # pops name then obj, pushes getattr(obj, name)
+OP_NEG = next_op()       # pops x, pushes -x
+OP_POS = next_op()       # pops x, pushes +x
+OP_NOT = next_op()       # pops x, pushes not x
 
 # ops below here have a parameter
-LAST_NO_PARAM_OP = OP_TERMINATE
+LAST_NO_PARAM_OP = OP_NOT
 
 OP_PUSH_CONST = next_op()    # param: constant-table index
 OP_JMP = next_op()           # param: absolute byte offset
