@@ -291,6 +291,11 @@ class Compiler:
                 else:
                     value_node = stmt.value
                     self.emit_assignment(stmt.targets[0], lambda v=value_node: self.emit_expr(v))
+            elif isinstance(stmt, ast.AnnAssign):
+                # Type annotation — ignore the annotation, compile value if present
+                if stmt.value is not None and isinstance(stmt.target, ast.Name):
+                    value_node = stmt.value
+                    self.emit_assignment(stmt.target, lambda v=value_node: self.emit_expr(v))
             elif isinstance(stmt, ast.AugAssign):
                 if not isinstance(stmt.target, ast.Name):
                     raise NotImplementedError("Only simple name targets are supported for augmented assignment")

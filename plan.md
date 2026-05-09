@@ -63,8 +63,17 @@
 - `global` / `nonlocal`
 - `return` (function bodies)
 
+## Implemented
+
+ignore for type hints. They should not cause compilation to fail -- but they also don't need to impact bytecode compilation
+ie: `x : int = "a"`
+
 ## To implement (Phase 6)
-- `import`
+- `import x`
+- `import x as y`
+- `from x import y`
+- `from x import y as z`
+- `from x import y, b, c`
 
 ## To implement (Phase 7)
 - Keyword and star args in calls: `f(x, key=val)`, `f(*args, **kwargs)`
