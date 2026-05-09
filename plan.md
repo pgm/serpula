@@ -28,12 +28,11 @@
 - Comprehensions: `[x for x in y]`, `{k: v for ...}`
 - Also added remaining binary ops: `%`, `**`, `<<`, `>>`, `|`, `^`, `&`
 
-## To implement (Phase 3)
-- Conditional expression: `a if cond else b`
+## Implemented (Phase 3)
 - Boolean operators: `and`, `or`
-- Chained comparisons: `1 < x < 10`
 
-## To implement (Phase 3.1)
+## To implement (Phase 3.2)
+- Conditional expression: `a if cond else b`
 
 **Statements**
 - Augmented assignment: `x += 1`
@@ -60,6 +59,7 @@
 
 
 ## Will not implement
+- Chained comparisons: `1 < x < 10`
 - `try` / `except` / `finally`
 - `with` (context managers)
 - Classes (`class`, `self`, inheritance)

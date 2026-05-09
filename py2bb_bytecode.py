@@ -7,7 +7,7 @@ from bytecode import (
     Executable,
     OP_ADD, OP_SUB, OP_MUL, OP_DIV, OP_FLOORDIV,
     OP_GT, OP_LT, OP_GTE, OP_LTE, OP_EQ, OP_NE,
-    OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_TERMINATE,
+    OP_STORE, OP_GET, OP_GET_ITER, OP_POP, OP_DUP, OP_TERMINATE,
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_MOD, OP_POW, OP_LSHIFT, OP_RSHIFT, OP_BITOR, OP_BITXOR, OP_BITAND,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
@@ -146,6 +146,16 @@ class Compiler:
                 raise NotImplementedError(f"Unsupported unary operator: {op_type.__name__}")
             self.emit_expr(node.operand)
             self._instr(UNARY_MAP[op_type])
+        elif isinstance(node, ast.BoolOp):
+            end_label = self.alloc_label()
+            is_and = isinstance(node.op, ast.And)
+            for i, value in enumerate(node.values):
+                self.emit_expr(value)
+                if i < len(node.values) - 1:
+                    self._instr(OP_DUP)
+                    self._instr('jmp_if_false' if is_and else 'jmp_if_true', end_label)
+                    self._instr(OP_POP)
+            self.emit_label(end_label)
         elif isinstance(node, ast.ListComp):
             result_var = f"__comp_{self.comp_count}__"
             self.comp_count += 1

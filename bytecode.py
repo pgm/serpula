@@ -39,6 +39,7 @@ OP_STORE = next_op()    # pops name then value, stores in locals
 OP_GET = next_op()      # pops name, pushes value (locals → globals → builtins)
 OP_GET_ITER = next_op() # pops iterable, pushes iterator
 OP_POP = next_op()      # discards TOS
+OP_DUP = next_op()      # duplicates TOS
 OP_TERMINATE = next_op()
 OP_SUBSCRIPT = next_op() # pops key then container, pushes container[key]
 OP_GETATTR = next_op()   # pops name then obj, pushes getattr(obj, name)
