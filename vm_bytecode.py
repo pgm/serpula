@@ -1,4 +1,3 @@
-import builtins as _builtins
 import struct
 from dataclasses import dataclass, field
 from typing import Optional
@@ -22,6 +21,119 @@ from bytecode import (
     OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
     OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION, OP_SUSPEND,
 )
+# Not exposed — require custom implementation to work correctly in serpula:
+#   compile(), eval(), exec(), globals(), locals()
+
+import builtins as _builtins
+
+exceptions = {
+    # Exceptions (looked up by name at runtime, e.g. by assert and raise)
+    'ArithmeticError':      _builtins.ArithmeticError,
+    'AssertionError':       _builtins.AssertionError,
+    'AttributeError':       _builtins.AttributeError,
+    'BaseException':        _builtins.BaseException,
+    'EOFError':             _builtins.EOFError,
+    'Exception':            _builtins.Exception,
+    'FileNotFoundError':    _builtins.FileNotFoundError,
+    'FloatingPointError':   _builtins.FloatingPointError,
+    'GeneratorExit':        _builtins.GeneratorExit,
+    'IOError':              _builtins.IOError,
+    'ImportError':          _builtins.ImportError,
+    'IndexError':           _builtins.IndexError,
+    'InterruptedError':     _builtins.InterruptedError,
+    'IsADirectoryError':    _builtins.IsADirectoryError,
+    'KeyError':             _builtins.KeyError,
+    'KeyboardInterrupt':    _builtins.KeyboardInterrupt,
+    'LookupError':          _builtins.LookupError,
+    'MemoryError':          _builtins.MemoryError,
+    'NameError':            _builtins.NameError,
+    'NotADirectoryError':   _builtins.NotADirectoryError,
+    'NotImplementedError':  _builtins.NotImplementedError,
+    'OSError':              _builtins.OSError,
+    'OverflowError':        _builtins.OverflowError,
+    'PermissionError':      _builtins.PermissionError,
+    'ProcessLookupError':   _builtins.ProcessLookupError,
+    'RecursionError':       _builtins.RecursionError,
+    'RuntimeError':         _builtins.RuntimeError,
+    'StopIteration':        _builtins.StopIteration,
+    'SyntaxError':          _builtins.SyntaxError,
+    'SystemExit':           _builtins.SystemExit,
+    'TimeoutError':         _builtins.TimeoutError,
+    'TypeError':            _builtins.TypeError,
+    'UnboundLocalError':    _builtins.UnboundLocalError,
+    'UnicodeError':         _builtins.UnicodeError,
+    'ValueError':           _builtins.ValueError,
+    'ZeroDivisionError':    _builtins.ZeroDivisionError,
+    # Constants
+    'NotImplemented':       _builtins.NotImplemented,
+    'Ellipsis':             _builtins.Ellipsis,
+}
+
+default_builtins = {
+    # Functions safe to delegate to the native Python version
+    'getattr':      _builtins.getattr,
+    'hasattr':      _builtins.hasattr,
+    'abs':          _builtins.abs,
+    'all':          _builtins.all,
+    'any':          _builtins.any,
+    'ascii':        _builtins.ascii,
+    'bin':          _builtins.bin,
+    'bool':         _builtins.bool,
+    'bytearray':    _builtins.bytearray,
+    'bytes':        _builtins.bytes,
+    'callable':     _builtins.callable,
+    'chr':          _builtins.chr,
+    'complex':      _builtins.complex,
+    'delattr':      _builtins.delattr,
+    'dict':         _builtins.dict,
+    'dir':          _builtins.dir,
+    'divmod':       _builtins.divmod,
+    'enumerate':    _builtins.enumerate,
+    'filter':       _builtins.filter,
+    'float':        _builtins.float,
+    'format':       _builtins.format,
+    'frozenset':    _builtins.frozenset,
+    'hash':         _builtins.hash,
+    'hex':          _builtins.hex,
+    'id':           _builtins.id,
+    'input':        _builtins.input,
+    'int':          _builtins.int,
+    'isinstance':   _builtins.isinstance,
+    'issubclass':   _builtins.issubclass,
+    'iter':         _builtins.iter,
+    'len':          _builtins.len,
+    'list':         _builtins.list,
+    'map':          _builtins.map,
+    'max':          _builtins.max,
+    'memoryview':   _builtins.memoryview,
+    'min':          _builtins.min,
+    'next':         _builtins.next,
+    'object':       _builtins.object,
+    'oct':          _builtins.oct,
+    'open':         _builtins.open,
+    'ord':          _builtins.ord,
+    'pow':          _builtins.pow,
+    'print':        _builtins.print,
+    'property':     _builtins.property,
+    'range':        _builtins.range,
+    'repr':         _builtins.repr,
+    'reversed':     _builtins.reversed,
+    'round':        _builtins.round,
+    'set':          _builtins.set,
+    'setattr':      _builtins.setattr,
+    'slice':        _builtins.slice,
+    'sorted':       _builtins.sorted,
+    'str':          _builtins.str,
+    'sum':          _builtins.sum,
+    'super':        _builtins.super,
+    'tuple':        _builtins.tuple,
+    'type':         _builtins.type,
+    'vars':         _builtins.vars,
+    'zip':          _builtins.zip,
+    '__debug__':            __debug__,
+}
+
+default_builtins.update(exceptions)
 
 @dataclass
 class Runtime:
@@ -34,7 +146,7 @@ class Runtime:
     return_value: object = None
 
     def __post_init__(self):
-        self.globals.setdefault('__builtins__', _builtins)
+        self.globals.setdefault('__builtins__', default_builtins)
 
 
 class FunctionSpec:

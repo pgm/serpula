@@ -122,6 +122,28 @@ Tests for the `suspend`/`resume` extension (see below).
 ### Not supported
 `nonlocal`, `try`/`except`/`finally`, `with`, `class`, `yield`/generators, decorators, `async`/`await`, walrus operator (`:=`), `match`/`case`, chained comparisons (`1 < x < 10`), keyword/star args, lambda, `import`.
 
+### Built-in functions
+The following standard built-ins are available by default. The `__builtins__` entry in a `Runtime`'s globals dict is a plain `dict` (not the module), so callers can restrict or extend it freely.
+
+| | | | | | |
+|---|---|---|---|---|---|
+| `abs` | `all` | `any` | `ascii` | `bin` | `bool` |
+| `bytearray` | `bytes` | `callable` | `chr` | `complex` | `delattr` |
+| `dict` | `dir` | `divmod` | `enumerate` | `filter` | `float` |
+| `format` | `frozenset` | `getattr` | `hasattr` | `hash` | `hex` |
+| `id` | `input` | `int` | `isinstance` | `issubclass` | `iter` |
+| `len` | `list` | `map` | `max` | `memoryview` | `min` |
+| `next` | `object` | `oct` | `open` | `ord` | `pow` |
+| `print` | `property` | `range` | `repr` | `reversed` | `round` |
+| `set` | `setattr` | `slice` | `sorted` | `str` | `sum` |
+| `super` | `tuple` | `type` | `vars` | `zip` | |
+
+Constants: `NotImplemented`, `Ellipsis`, `__debug__`.
+
+All standard exceptions are also available (`Exception`, `ValueError`, `TypeError`, `AssertionError`, etc.).
+
+The following built-ins are **not** exposed because they would require a custom serpula-aware implementation to behave correctly: `compile`, `eval`, `exec`, `globals`, `locals`.
+
 ## Suspend/Resume
 
 serpula adds a non-standard `suspend` built-in that allows execution to be paused and later resumed — similar in spirit to coroutines, but driven explicitly by the host.
