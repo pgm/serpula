@@ -1,4 +1,4 @@
-# minipy
+# serpula
 
 A toy Python compiler targeting a custom stack-based bytecode VM. Compiles a subset of Python via the `ast` module into a flat bytecode buffer and executes it with a fetch-decode-execute loop.
 
@@ -28,7 +28,7 @@ Opcode definitions, bytecode encoding format, and I/O classes.
 - `OP_BUILD_SET(n)` — pop n items, push set
 - `OP_BUILD_DICT(n)` — pop n interleaved key-value pairs, push dict
 - `OP_FOR_ITER(idx)` — `constants[idx]` is the loop-var name; pops iterator, assigns next value to that local and pushes True, or pushes False on exhaustion
-- `OP_MAKE_FUNCTION(idx)` — `constants[idx]` is a `FunctionSpec`; wraps it in a `MiniPyFunction` and pushes it
+- `OP_MAKE_FUNCTION(idx)` — `constants[idx]` is a `FunctionSpec`; wraps it in a `SerpulaFunction` and pushes it
 - `OP_SUSPEND(n)` — pop n args into a tuple, save the program counter, and halt execution (see [Suspend/Resume](#suspendresume))
 
 **Classes:**
@@ -75,12 +75,12 @@ Bytecode interpreter and execution model.
 
 **`FunctionSpec`** — compiled function metadata stored in the constant table: `exe`, `params`, `global_names`. Uses identity-based `__hash__`/`__eq__` so it is a valid constant-table key.
 
-**`MiniPyFunction`** — callable that captures a `FunctionSpec` and the current globals dict. On call, creates a fresh `Frame`, populates it with arguments, runs a nested `execute`, and returns `runtime.return_value`.
+**`SerpulaFunction`** — callable that captures a `FunctionSpec` and the current globals dict. On call, creates a fresh `Frame`, populates it with arguments, runs a nested `execute`, and returns `runtime.return_value`.
 
 At module level, `frame.locals` must be set to the same dict as `globals` before calling `execute` (so that top-level definitions are visible to functions as globals). The test harness and any other entry-point callers are responsible for this setup.
 
 ### test_harness.py
-Runs every `examples/*.py` file through both the real Python interpreter (`exec`) and the minipy compiler+VM, and asserts that their `print` outputs match.
+Runs every `examples/*.py` file through both the real Python interpreter (`exec`) and the serpula compiler+VM, and asserts that their `print` outputs match.
 
 ### test_extensions.py
 Tests for the `suspend`/`resume` extension (see below).
@@ -120,7 +120,7 @@ Tests for the `suspend`/`resume` extension (see below).
 
 ## Suspend/Resume
 
-minipy adds a non-standard `suspend` built-in that allows execution to be paused and later resumed — similar in spirit to coroutines, but driven explicitly by the host.
+serpula adds a non-standard `suspend` built-in that allows execution to be paused and later resumed — similar in spirit to coroutines, but driven explicitly by the host.
 
 ### How it works
 

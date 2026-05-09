@@ -36,11 +36,11 @@ def exec_and_compare(filename : str):
     py_out = OutputCollector()
     _run_via_python(filename, {"print": py_out.output})
     
-    mini_py_out = OutputCollector()
-    _run_via_bytecode(filename, {"print": mini_py_out.output})
+    serpula_out = OutputCollector()
+    _run_via_bytecode(filename, {"print": serpula_out.output})
 
     # make sure the outputs from both match
-    assert mini_py_out.outputs == py_out.outputs
+    assert serpula_out.outputs == py_out.outputs
 
 import logging
 log = logging.getLogger(__name__)

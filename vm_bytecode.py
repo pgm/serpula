@@ -49,7 +49,7 @@ class FunctionSpec:
         return self is other
 
 
-class MiniPyFunction:
+class SerpulaFunction:
     def __init__(self, spec: FunctionSpec, globals_dict: dict):
         self.spec = spec
         self.globals_dict = globals_dict
@@ -251,7 +251,7 @@ def execute(runtime: Runtime) -> Runtime:
         elif op == OP_MAKE_FUNCTION:
             spec = constants[param]
             assert isinstance(spec, FunctionSpec)
-            dstack.append(MiniPyFunction(spec, runtime.globals))
+            dstack.append(SerpulaFunction(spec, runtime.globals))
         else:
             raise RuntimeError(f"Unknown opcode {op} at pc={pc - 1}")
 
