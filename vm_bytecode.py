@@ -33,6 +33,9 @@ class Runtime:
     suspend_value: object = None
     return_value: object = None
 
+    def __post_init__(self):
+        self.globals.setdefault('__builtins__', _builtins)
+
 
 class FunctionSpec:
     """Compiled function body + metadata; stored in the constant table."""
@@ -109,17 +112,22 @@ def execute(runtime: Runtime) -> Runtime:
             dstack.append(constants[param])
         elif op == OP_GET:
             name = dstack.pop()
+            _builtins_ns = runtime.globals['__builtins__']
             if name in runtime.frame.global_names:
                 if name in runtime.globals:
                     dstack.append(runtime.globals[name])
+                elif isinstance(_builtins_ns, dict):
+                    dstack.append(_builtins_ns[name])
                 else:
-                    dstack.append(getattr(_builtins, name))
+                    dstack.append(getattr(_builtins_ns, name))
             elif name in locals_:
                 dstack.append(locals_[name])
             elif name in runtime.globals:
                 dstack.append(runtime.globals[name])
+            elif isinstance(_builtins_ns, dict):
+                dstack.append(_builtins_ns[name])
             else:
-                dstack.append(getattr(_builtins, name))
+                dstack.append(getattr(_builtins_ns, name))
         elif op == OP_STORE:
             value = dstack.pop()
             name = dstack.pop()
