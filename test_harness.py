@@ -1,6 +1,6 @@
 import ast
 from glob import glob
-from py2bb_bytecode import Compiler, emit_bytecode
+from compiler import Compiler, emit_bytecode
 from vm_bytecode import execute, Runtime, Frame
 
 

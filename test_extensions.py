@@ -2,7 +2,7 @@
 Tests for suspend/resume.
 """
 import ast
-from py2bb_bytecode import Compiler, emit_bytecode
+from compiler import Compiler, emit_bytecode
 from vm_bytecode import execute, resume, Runtime, Frame
 
 
