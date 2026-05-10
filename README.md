@@ -106,7 +106,7 @@ Tests for the `suspend`/`resume` extension (see below).
 
 ### Statements
 - Assignment: `x = expr`, multiple targets (`a = b = expr`), tuple unpacking (`a, b = expr`)
-- Augmented assignment: `x += 1` (simple name targets only)
+- Augmented assignment: `x += 1` and `obj.attr += 1` (simple name or `name.attr` targets)
 - Annotated assignment: `x: int = expr` (annotation is ignored)
 - L-value forms: `x[i] = v`, `obj.attr = v`, `x.a.b = v`, `a, b = expr`
 - `if` / `elif` / `else`
@@ -115,12 +115,14 @@ Tests for the `suspend`/`resume` extension (see below).
 - `break` / `continue`
 - `assert`
 - `del` (simple names only)
+- `pass`
 - `def` — function definitions with positional parameters; `return`; implicit `return None`
 - `global` — names are routed through the globals dict in both reads and writes
+- `class` — single and multiple inheritance; methods with positional params; class variables. Compiled to `type(name, bases, namespace)`. Limitations: no decorators, no metaclasses, no `super()` without explicit args, no nested classes.
 - Type annotations (`x: int = ...`) — annotation is parsed but ignored
 
 ### Not supported
-`nonlocal`, `try`/`except`/`finally`, `with`, `class`, `yield`/generators, decorators, `async`/`await`, walrus operator (`:=`), `match`/`case`, chained comparisons (`1 < x < 10`), keyword/star args, lambda, `import`.
+`nonlocal`, `try`/`except`/`finally`, `with`, `yield`/generators, decorators, `async`/`await`, walrus operator (`:=`), `match`/`case`, chained comparisons (`1 < x < 10`), keyword/star args, lambda, `import`.
 
 ### Built-in functions
 The following standard built-ins are available by default. The `__builtins__` entry in a `Runtime`'s globals dict is a plain `dict` (not the module), so callers can restrict or extend it freely.

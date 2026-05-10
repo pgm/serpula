@@ -266,6 +266,52 @@ class Compiler:
         self._instr('jmp', header_label)
         self.emit_label(exit_label)
 
+    def _compile_class_body(self, stmts: list[ast.stmt], ns_var: str):
+        for stmt in stmts:
+            if isinstance(stmt, ast.Pass):
+                pass
+            elif isinstance(stmt, ast.FunctionDef):
+                if stmt.decorator_list:
+                    raise NotImplementedError("Decorators are not supported")
+                args = stmt.args
+                if args.vararg or args.kwarg or args.kwonlyargs or args.defaults or args.kw_defaults:
+                    raise NotImplementedError("Only simple positional parameters are supported")
+                params = [arg.arg for arg in args.args]
+                global_names = _collect_globals(stmt.body)
+                func_compiler = Compiler()
+                func_terminate_label = func_compiler.alloc_label()
+                func_compiler.compile_stmts(stmt.body, func_terminate_label)
+                func_compiler.emit_label(func_terminate_label)
+                func_compiler._instr('push_const', None)
+                func_compiler._instr(OP_RETURN)
+                func_exe = emit_bytecode(func_compiler)
+                spec = FunctionSpec(func_exe, params, global_names)
+                # ns_var[method_name] = SerpulaFunction(spec)
+                self._instr('push_const', ns_var)
+                self._instr(OP_GET)
+                self._instr('push_const', stmt.name)
+                self._instr('make_function', spec)
+                self._instr(OP_STORE_SUBSCRIPT)
+            elif isinstance(stmt, (ast.Assign, ast.AnnAssign)):
+                if isinstance(stmt, ast.Assign):
+                    targets = stmt.targets
+                    value_node = stmt.value
+                else:
+                    if stmt.value is None:
+                        continue
+                    targets = [stmt.target]
+                    value_node = stmt.value
+                for target in targets:
+                    if not isinstance(target, ast.Name):
+                        raise NotImplementedError("Only simple name targets in class body assignments")
+                    self._instr('push_const', ns_var)
+                    self._instr(OP_GET)
+                    self._instr('push_const', target.id)
+                    self.emit_expr(value_node)
+                    self._instr(OP_STORE_SUBSCRIPT)
+            else:
+                raise NotImplementedError(f"Unsupported statement in class body: {type(stmt).__name__}")
+
     def emit_assignment(self, target: ast.expr, emit_value):
         """Emit code to store a value into target. emit_value() pushes the value onto the stack."""
         if isinstance(target, ast.Name):
@@ -321,18 +367,35 @@ class Compiler:
                     value_node = stmt.value
                     self.emit_assignment(stmt.target, lambda v=value_node: self.emit_expr(v))
             elif isinstance(stmt, ast.AugAssign):
-                if not isinstance(stmt.target, ast.Name):
-                    raise NotImplementedError("Only simple name targets are supported for augmented assignment")
                 op_type = type(stmt.op)
                 if op_type not in BINOP_MAP:
                     raise NotImplementedError(f"Unsupported augmented assignment operator: {op_type.__name__}")
-                name = stmt.target.id
-                self._instr('push_const', name)  # for store
-                self._instr('push_const', name)  # for load
-                self._instr(OP_GET)
-                self.emit_expr(stmt.value)
-                self._instr(BINOP_MAP[op_type])
-                self._instr(OP_STORE)
+                if isinstance(stmt.target, ast.Name):
+                    name = stmt.target.id
+                    self._instr('push_const', name)  # for store
+                    self._instr('push_const', name)  # for load
+                    self._instr(OP_GET)
+                    self.emit_expr(stmt.value)
+                    self._instr(BINOP_MAP[op_type])
+                    self._instr(OP_STORE)
+                elif isinstance(stmt.target, ast.Attribute) and isinstance(stmt.target.value, ast.Name):
+                    obj_name = stmt.target.value.id
+                    attr_name = stmt.target.attr
+                    # push obj and attr name for OP_STORE_ATTR at end
+                    self._instr('push_const', obj_name)
+                    self._instr(OP_GET)
+                    self._instr('push_const', attr_name)
+                    # compute old op rhs
+                    self._instr('push_const', obj_name)
+                    self._instr(OP_GET)
+                    self._instr('push_const', attr_name)
+                    self._instr(OP_GETATTR)
+                    self.emit_expr(stmt.value)
+                    self._instr(BINOP_MAP[op_type])
+                    # stack: [obj, attr_name, new_value]
+                    self._instr(OP_STORE_ATTR)
+                else:
+                    raise NotImplementedError("Only simple name or obj.attr targets are supported for augmented assignment")
             elif isinstance(stmt, ast.Assert):
                 end_label = self.alloc_label()
                 self.emit_expr(stmt.test)
@@ -443,6 +506,34 @@ class Compiler:
                 pass  # names already collected at FunctionDef compilation time
             elif isinstance(stmt, ast.Nonlocal):
                 raise NotImplementedError("nonlocal is not supported")
+            elif isinstance(stmt, ast.Pass):
+                pass
+            elif isinstance(stmt, ast.ClassDef):
+                if stmt.decorator_list:
+                    raise NotImplementedError("Class decorators are not supported")
+                if stmt.keywords:
+                    raise NotImplementedError("Metaclasses are not supported")
+                ns_var = f"__cls_ns_{self.iter_count}__"
+                self.iter_count += 1
+                # initialise namespace dict
+                self._instr('push_const', ns_var)
+                self._instr(OP_BUILD_DICT, 0)
+                self._instr(OP_STORE)
+                # compile class body into the namespace dict
+                self._compile_class_body(stmt.body, ns_var)
+                # push store-target name first, then call type(name, bases, ns)
+                self._instr('push_const', stmt.name)
+                self._instr('push_const', 'type')
+                self._instr(OP_GET)
+                self._instr('push_const', stmt.name)
+                for base in stmt.bases:
+                    self.emit_expr(base)
+                self._instr(OP_BUILD_TUPLE, len(stmt.bases))
+                self._instr('push_const', ns_var)
+                self._instr(OP_GET)
+                self._instr(OP_CALL, 3)
+                # stack: [class_name, class_obj] → OP_STORE
+                self._instr(OP_STORE)
             else:
                 raise NotImplementedError(f"Unsupported statement: {type(stmt).__name__}")
         self._instr('jmp', fallthrough_label)
