@@ -19,7 +19,7 @@ from bytecode import (
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
     OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
-    OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION, OP_SUSPEND,
+    OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION, OP_SUSPEND, OP_CALL_KW,
 )
 # Not exposed — require custom implementation to work correctly in serpula:
 #   compile(), eval(), exec(), globals(), locals()
@@ -151,10 +151,11 @@ class Runtime:
 
 class FunctionSpec:
     """Compiled function body + metadata; stored in the constant table."""
-    def __init__(self, exe: Executable, params: list[str], global_names: set[str]):
+    def __init__(self, exe: Executable, params: list[str], global_names: set[str], n_defaults: int = 0):
         self.exe = exe
         self.params = params
         self.global_names = global_names
+        self.n_defaults = n_defaults
 
     # FunctionSpec objects are used as constant-table keys via identity.
     def __hash__(self):
@@ -165,18 +166,33 @@ class FunctionSpec:
 
 
 class SerpulaFunction:
-    def __init__(self, spec: FunctionSpec, globals_dict: dict):
+    def __init__(self, spec: FunctionSpec, globals_dict: dict, defaults: dict):
         self.spec = spec
         self.globals_dict = globals_dict
+        self.defaults = defaults  # {param_name: default_value}, evaluated at def time
 
-    def __call__(self, *args):
-        if len(args) != len(self.spec.params):
-            raise TypeError(
-                f"expected {len(self.spec.params)} arguments, got {len(args)}"
-            )
+    def __call__(self, *args, **kwargs):
+        params = self.spec.params
+        if len(args) > len(params):
+            raise TypeError(f"too many positional arguments")
+        frame_locals: dict = {}
+        for name, val in zip(params, args):
+            frame_locals[name] = val
+        param_set = set(params)
+        for name, val in kwargs.items():
+            if name not in param_set:
+                raise TypeError(f"unexpected keyword argument '{name}'")
+            if name in frame_locals:
+                raise TypeError(f"got multiple values for argument '{name}'")
+            frame_locals[name] = val
+        for name, val in self.defaults.items():
+            if name not in frame_locals:
+                frame_locals[name] = val
+        for name in params:
+            if name not in frame_locals:
+                raise TypeError(f"missing required argument '{name}'")
         frame = Frame(global_names=self.spec.global_names)
-        for name, val in zip(self.spec.params, args):
-            frame.locals[name] = val
+        frame.locals = frame_locals
         runtime = Runtime(exe=self.spec.exe, globals=self.globals_dict, frame=frame)
         result = execute(runtime)
         if result.suspended:
@@ -371,7 +387,19 @@ def execute(runtime: Runtime) -> Runtime:
         elif op == OP_MAKE_FUNCTION:
             spec = constants[param]
             assert isinstance(spec, FunctionSpec)
-            dstack.append(SerpulaFunction(spec, runtime.globals))
+            defaults = {}
+            if spec.n_defaults > 0:
+                vals = [dstack.pop() for _ in range(spec.n_defaults)]
+                vals.reverse()
+                default_params = spec.params[len(spec.params) - spec.n_defaults:]
+                defaults = dict(zip(default_params, vals))
+            dstack.append(SerpulaFunction(spec, runtime.globals, defaults))
+        elif op == OP_CALL_KW:
+            kwargs = dstack.pop()
+            args = [dstack.pop() for _ in range(param)]
+            args.reverse()
+            func = dstack.pop()
+            dstack.append(func(*args, **kwargs))
         else:
             raise RuntimeError(f"Unknown opcode {op} at pc={pc - 1}")
 

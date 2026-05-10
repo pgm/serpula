@@ -70,6 +70,7 @@ OP_FOR_ITER = next_op()      # param: constant-table index of loop-var name; pop
                              #        assigns next value to var and pushes True, or pushes False
 OP_MAKE_FUNCTION = next_op() # param: constant-table index of FunctionSpec; pushes callable
 OP_SUSPEND = next_op()       # param: number of args; pops args into tuple, suspends execution
+OP_CALL_KW = next_op()       # param: number of positional args; pops kwargs dict, then pos args, then callable
 
 class Executable:
     def __init__(self, buffer, constants  : dict[int, object]):
