@@ -19,7 +19,7 @@ from bytecode import (
     OP_PUSH_CONST, OP_JMP, OP_JMP_IF_TRUE, OP_JMP_IF_FALSE,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
     OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
-    OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION, OP_SUSPEND, OP_CALL_KW,
+    OP_IS, OP_IS_NOT, OP_RETURN, OP_CALL_EX, OP_MAKE_FUNCTION, OP_SUSPEND, OP_CALL_KW,
 )
 # Not exposed — require custom implementation to work correctly in serpula:
 #   compile(), eval(), exec(), globals(), locals()
@@ -151,11 +151,14 @@ class Runtime:
 
 class FunctionSpec:
     """Compiled function body + metadata; stored in the constant table."""
-    def __init__(self, exe: Executable, params: list[str], global_names: set[str], n_defaults: int = 0):
+    def __init__(self, exe: Executable, params: list[str], global_names: set[str],
+                 n_defaults: int = 0, vararg: str | None = None, kwarg: str | None = None):
         self.exe = exe
         self.params = params
         self.global_names = global_names
         self.n_defaults = n_defaults
+        self.vararg = vararg  # name of *args parameter, or None
+        self.kwarg = kwarg    # name of **kwargs parameter, or None
 
     # FunctionSpec objects are used as constant-table keys via identity.
     def __hash__(self):
@@ -173,18 +176,32 @@ class SerpulaFunction:
 
     def __call__(self, *args, **kwargs):
         params = self.spec.params
-        if len(args) > len(params):
-            raise TypeError(f"too many positional arguments")
+        vararg = self.spec.vararg
+        kwarg_name = self.spec.kwarg
         frame_locals: dict = {}
+        # bind positional args to regular params
         for name, val in zip(params, args):
             frame_locals[name] = val
+        # extra positional args go to *args
+        extra_pos = args[len(params):]
+        if extra_pos and vararg is None:
+            raise TypeError(f"too many positional arguments")
+        if vararg is not None:
+            frame_locals[vararg] = tuple(extra_pos)
+        # bind keyword args
         param_set = set(params)
+        extra_kwargs: dict = {}
         for name, val in kwargs.items():
-            if name not in param_set:
+            if name in param_set:
+                if name in frame_locals:
+                    raise TypeError(f"got multiple values for argument '{name}'")
+                frame_locals[name] = val
+            elif kwarg_name is not None:
+                extra_kwargs[name] = val
+            else:
                 raise TypeError(f"unexpected keyword argument '{name}'")
-            if name in frame_locals:
-                raise TypeError(f"got multiple values for argument '{name}'")
-            frame_locals[name] = val
+        if kwarg_name is not None:
+            frame_locals[kwarg_name] = extra_kwargs
         for name, val in self.defaults.items():
             if name not in frame_locals:
                 frame_locals[name] = val
@@ -394,6 +411,11 @@ def execute(runtime: Runtime) -> Runtime:
                 default_params = spec.params[len(spec.params) - spec.n_defaults:]
                 defaults = dict(zip(default_params, vals))
             dstack.append(SerpulaFunction(spec, runtime.globals, defaults))
+        elif op == OP_CALL_EX:
+            kwargs = dstack.pop()
+            args = dstack.pop()
+            func = dstack.pop()
+            dstack.append(func(*args, **kwargs))
         elif op == OP_CALL_KW:
             kwargs = dstack.pop()
             args = [dstack.pop() for _ in range(param)]

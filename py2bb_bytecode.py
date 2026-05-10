@@ -12,7 +12,7 @@ from bytecode import (
     OP_MOD, OP_POW, OP_LSHIFT, OP_RSHIFT, OP_BITOR, OP_BITXOR, OP_BITAND,
     OP_CALL, OP_BUILD_LIST, OP_BUILD_TUPLE, OP_BUILD_SET, OP_BUILD_DICT, OP_FOR_ITER,
     OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
-    OP_IS, OP_IS_NOT, OP_RETURN, OP_MAKE_FUNCTION, OP_SUSPEND, OP_CALL_KW,
+    OP_IS, OP_IS_NOT, OP_RETURN, OP_CALL_EX, OP_MAKE_FUNCTION, OP_SUSPEND, OP_CALL_KW,
 )
 from vm_bytecode import FunctionSpec
 
@@ -116,14 +116,61 @@ class Compiler:
             self.emit_expr(node.comparators[0])
             self._instr(CMP_MAP[op_type])
         elif isinstance(node, ast.Call):
-            if any(isinstance(a, ast.Starred) for a in node.args):
-                raise NotImplementedError("Star arguments are not supported")
-            if any(kw.arg is None for kw in node.keywords):
-                raise NotImplementedError("** unpacking in calls is not supported")
+            has_starred = any(isinstance(a, ast.Starred) for a in node.args)
+            has_dstar = any(kw.arg is None for kw in node.keywords)
             if isinstance(node.func, ast.Name) and node.func.id == 'suspend':
+                if has_starred or has_dstar:
+                    raise NotImplementedError("star args not supported in suspend()")
                 for arg in node.args:
                     self.emit_expr(arg)
                 self._instr(OP_SUSPEND, len(node.args))
+            elif has_starred or has_dstar:
+                # evaluate func first (stays at bottom of dstack)
+                self.emit_expr(node.func)
+                # build positional args list in a temp var using append/extend
+                list_var = f"__args_{self.iter_count}__"
+                self.iter_count += 1
+                self._instr('push_const', list_var)
+                self._instr(OP_BUILD_LIST, 0)
+                self._instr(OP_STORE)
+                for arg in node.args:
+                    self._instr('push_const', list_var)
+                    self._instr(OP_GET)
+                    if isinstance(arg, ast.Starred):
+                        self._instr('push_const', 'extend')
+                        self._instr(OP_GETATTR)
+                        self.emit_expr(arg.value)
+                    else:
+                        self._instr('push_const', 'append')
+                        self._instr(OP_GETATTR)
+                        self.emit_expr(arg)
+                    self._instr(OP_CALL, 1)
+                    self._instr(OP_POP)
+                # build kwargs dict in a temp var using setitem/update
+                kw_var = f"__kwargs_{self.iter_count}__"
+                self.iter_count += 1
+                self._instr('push_const', kw_var)
+                self._instr(OP_BUILD_DICT, 0)
+                self._instr(OP_STORE)
+                for kw in node.keywords:
+                    self._instr('push_const', kw_var)
+                    self._instr(OP_GET)
+                    if kw.arg is None:
+                        self._instr('push_const', 'update')
+                        self._instr(OP_GETATTR)
+                        self.emit_expr(kw.value)
+                        self._instr(OP_CALL, 1)
+                        self._instr(OP_POP)
+                    else:
+                        self._instr('push_const', kw.arg)
+                        self.emit_expr(kw.value)
+                        self._instr(OP_STORE_SUBSCRIPT)
+                # stack: [func]; push args list and kwargs dict then call
+                self._instr('push_const', list_var)
+                self._instr(OP_GET)
+                self._instr('push_const', kw_var)
+                self._instr(OP_GET)
+                self._instr(OP_CALL_EX)
             elif node.keywords:
                 self.emit_expr(node.func)
                 for arg in node.args:
@@ -283,9 +330,11 @@ class Compiler:
                 if stmt.decorator_list:
                     raise NotImplementedError("Decorators are not supported")
                 args = stmt.args
-                if args.vararg or args.kwarg or args.kwonlyargs or args.kw_defaults:
-                    raise NotImplementedError("vararg, kwarg, and keyword-only parameters are not supported")
+                if args.kwonlyargs or args.kw_defaults:
+                    raise NotImplementedError("Keyword-only parameters are not supported")
                 params = [arg.arg for arg in args.args]
+                vararg = args.vararg.arg if args.vararg else None
+                kwarg = args.kwarg.arg if args.kwarg else None
                 n_defaults = len(args.defaults)
                 global_names = _collect_globals(stmt.body)
                 for default_node in args.defaults:
@@ -297,7 +346,7 @@ class Compiler:
                 func_compiler._instr('push_const', None)
                 func_compiler._instr(OP_RETURN)
                 func_exe = emit_bytecode(func_compiler)
-                spec = FunctionSpec(func_exe, params, global_names, n_defaults)
+                spec = FunctionSpec(func_exe, params, global_names, n_defaults, vararg, kwarg)
                 # ns_var[method_name] = SerpulaFunction(spec)
                 self._instr('push_const', ns_var)
                 self._instr(OP_GET)
@@ -493,9 +542,11 @@ class Compiler:
                 if stmt.decorator_list:
                     raise NotImplementedError("Decorators are not supported")
                 args = stmt.args
-                if args.vararg or args.kwarg or args.kwonlyargs or args.kw_defaults:
-                    raise NotImplementedError("vararg, kwarg, and keyword-only parameters are not supported")
+                if args.kwonlyargs or args.kw_defaults:
+                    raise NotImplementedError("Keyword-only parameters are not supported")
                 params = [arg.arg for arg in args.args]
+                vararg = args.vararg.arg if args.vararg else None
+                kwarg = args.kwarg.arg if args.kwarg else None
                 n_defaults = len(args.defaults)
                 global_names = _collect_globals(stmt.body)
                 # emit default expressions before make_function so VM can pop them
@@ -508,7 +559,7 @@ class Compiler:
                 func_compiler._instr('push_const', None)
                 func_compiler._instr(OP_RETURN)
                 func_exe = emit_bytecode(func_compiler)
-                spec = FunctionSpec(func_exe, params, global_names, n_defaults)
+                spec = FunctionSpec(func_exe, params, global_names, n_defaults, vararg, kwarg)
                 self._instr('push_const', stmt.name)
                 self._instr('make_function', spec)
                 self._instr(OP_STORE)

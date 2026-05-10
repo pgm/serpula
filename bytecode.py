@@ -53,9 +53,10 @@ OP_NOT = next_op()             # pops x, pushes not x
 OP_IS = next_op()              # pops b then a, pushes a is b
 OP_IS_NOT = next_op()          # pops b then a, pushes a is not b
 OP_RETURN = next_op()          # pops TOS and returns it from current function
+OP_CALL_EX = next_op()         # pops kwargs dict, args list, callable; calls callable(*args, **kwargs)
 
 # ops below here have a parameter
-LAST_NO_PARAM_OP = OP_RETURN
+LAST_NO_PARAM_OP = OP_CALL_EX
 
 OP_PUSH_CONST = next_op()    # param: constant-table index
 OP_JMP = next_op()           # param: absolute byte offset

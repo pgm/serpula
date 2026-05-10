@@ -101,7 +101,7 @@ Tests for the `suspend`/`resume` extension (see below).
 - Conditional expression: `a if cond else b`
 - Subscript access: `a[i]`
 - Attribute access: `obj.attr`
-- Function calls with positional and keyword args: `f(a, b)`, `f(a, key=val)`
+- Function calls: positional, keyword, `*iterable`, and `**mapping` unpacking
 - Comprehensions: list `[x for x in y if cond]`, set `{...}`, dict `{k: v ...}`
 
 ### Statements
@@ -116,13 +116,13 @@ Tests for the `suspend`/`resume` extension (see below).
 - `assert`
 - `del` (simple names only)
 - `pass`
-- `def` — function definitions with positional and keyword parameters, default values; `return`; implicit `return None`
+- `def` — positional, keyword, default, `*args`, and `**kwargs` parameters; `return`; implicit `return None`
 - `global` — names are routed through the globals dict in both reads and writes
 - `class` — single and multiple inheritance; methods with positional params; class variables. Compiled to `type(name, bases, namespace)`. Limitations: no decorators, no metaclasses, no `super()` without explicit args, no nested classes.
 - Type annotations (`x: int = ...`) — annotation is parsed but ignored
 
 ### Not supported
-`nonlocal`, `try`/`except`/`finally`, `with`, `yield`/generators, decorators, `async`/`await`, walrus operator (`:=`), `match`/`case`, chained comparisons (`1 < x < 10`), star args (`*args`, `**kwargs`), keyword-only params, lambda, `import`.
+`nonlocal`, `try`/`except`/`finally`, `with`, `yield`/generators, decorators, `async`/`await`, walrus operator (`:=`), `match`/`case`, chained comparisons (`1 < x < 10`), keyword-only params (`def f(*, x)`), lambda, `import`.
 
 ### Built-in functions
 The following standard built-ins are available by default. The `__builtins__` entry in a `Runtime`'s globals dict is a plain `dict` (not the module), so callers can restrict or extend it freely.
