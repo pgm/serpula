@@ -131,6 +131,7 @@ default_builtins = {
     'vars':         _builtins.vars,
     'zip':          _builtins.zip,
     '__debug__':            __debug__,
+    '__import__':           _builtins.__import__,
 }
 
 default_builtins.update(exceptions)

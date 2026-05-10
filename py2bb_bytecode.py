@@ -573,6 +573,52 @@ class Compiler:
                 pass  # names already collected at FunctionDef compilation time
             elif isinstance(stmt, ast.Nonlocal):
                 raise NotImplementedError("nonlocal is not supported")
+            elif isinstance(stmt, ast.Import):
+                for alias in stmt.names:
+                    store_name = alias.asname if alias.asname else alias.name.split('.')[0]
+                    self._instr('push_const', store_name)
+                    self._instr('push_const', '__import__')
+                    self._instr(OP_GET)
+                    self._instr('push_const', alias.name)
+                    self._instr('push_const', None)  # globals
+                    self._instr('push_const', None)  # locals
+                    self._instr(OP_BUILD_LIST, 0)    # fromlist
+                    self._instr('push_const', 0)     # level
+                    self._instr(OP_CALL, 5)
+                    # dotted import with alias: traverse attributes to get the leaf module
+                    if alias.asname and '.' in alias.name:
+                        for attr in alias.name.split('.')[1:]:
+                            self._instr('push_const', attr)
+                            self._instr(OP_GETATTR)
+                    self._instr(OP_STORE)
+            elif isinstance(stmt, ast.ImportFrom):
+                if stmt.level != 0:
+                    raise NotImplementedError("Relative imports are not supported")
+                if any(alias.name == '*' for alias in stmt.names):
+                    raise NotImplementedError("from foo import * is not supported")
+                fromlist = [alias.name for alias in stmt.names]
+                temp_var = f"__import_{self.iter_count}__"
+                self.iter_count += 1
+                self._instr('push_const', temp_var)
+                self._instr('push_const', '__import__')
+                self._instr(OP_GET)
+                self._instr('push_const', stmt.module)
+                self._instr('push_const', None)  # globals
+                self._instr('push_const', None)  # locals
+                for name in fromlist:
+                    self._instr('push_const', name)
+                self._instr(OP_BUILD_LIST, len(fromlist))
+                self._instr('push_const', 0)     # level
+                self._instr(OP_CALL, 5)
+                self._instr(OP_STORE)
+                for alias in stmt.names:
+                    store_name = alias.asname if alias.asname else alias.name
+                    self._instr('push_const', store_name)
+                    self._instr('push_const', temp_var)
+                    self._instr(OP_GET)
+                    self._instr('push_const', alias.name)
+                    self._instr(OP_GETATTR)
+                    self._instr(OP_STORE)
             elif isinstance(stmt, ast.Pass):
                 pass
             elif isinstance(stmt, ast.ClassDef):

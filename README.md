@@ -121,11 +121,13 @@ Tests for the `suspend`/`resume` extension (see below).
 - `pass`
 - `def` — positional, keyword, default, `*args`, and `**kwargs` parameters; `return`; implicit `return None`
 - `global` — names are routed through the globals dict in both reads and writes
+- `import foo`, `import foo.bar`, `import foo.bar as x` — compiled to `__import__()` calls identical to CPython
+- `from foo import bar`, `from foo import bar as x, baz` — likewise; relative imports and `*` are not supported
 - `class` — single and multiple inheritance; methods with full parameter support (positional, keyword, defaults, `*args`, `**kwargs`); class variables. Compiled to `type(name, bases, namespace)`. Limitations: no decorators, no metaclasses, no zero-arg `super()` (use `super(ClassName, self)` instead), no nested class definitions inside a class body.
 - Type annotations (`x: int = ...`) — annotation is parsed but ignored
 
 ### Not supported
-`nonlocal`, `try`/`except`/`finally`, `with`, `yield`/generators, decorators, `async`/`await`, walrus operator (`:=`), `match`/`case`, chained comparisons (`1 < x < 10`), keyword-only params (`def f(*, x)`), lambda, `import`.
+`nonlocal`, `try`/`except`/`finally`, `with`, `yield`/generators, decorators, `async`/`await`, walrus operator (`:=`), `match`/`case`, chained comparisons (`1 < x < 10`), keyword-only params (`def f(*, x)`), lambda, relative imports (`from . import foo`), `from foo import *`.
 
 ### Built-in functions
 The following standard built-ins are available by default. The `__builtins__` entry in a `Runtime`'s globals dict is a plain `dict` (not the module), so callers can restrict or extend it freely.
