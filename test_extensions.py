@@ -35,6 +35,14 @@ result = x[0] + x[1] + x[2]
     assert not rt2.suspended
     assert rt2.frame.locals["result"] == "abc"
 
+def test_suspend_from_inside_a_call():
+    rt = execute(make_runtime('''
+def wrapper():
+   suspend("a")
+wrapper()
+'''))
+    assert rt.suspended
+    assert rt.suspend_value == ("a", "b", "c")
 
 def test_resume_continues_after_suspend():
     src = '''
