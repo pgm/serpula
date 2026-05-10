@@ -19,21 +19,24 @@ Opcode definitions, bytecode encoding format, and I/O classes.
 `OP_GT`, `OP_LT`, `OP_GTE`, `OP_LTE`, `OP_EQ`, `OP_NE`, `OP_IS`, `OP_IS_NOT`,
 `OP_STORE`, `OP_GET`, `OP_GET_ITER`, `OP_POP`, `OP_DUP`, `OP_RAISE`, `OP_DELETE_NAME`, `OP_TERMINATE`,
 `OP_SUBSCRIPT`, `OP_STORE_SUBSCRIPT`, `OP_GETATTR`, `OP_STORE_ATTR`,
-`OP_NEG`, `OP_POS`, `OP_NOT`, `OP_RETURN`
+`OP_NEG`, `OP_POS`, `OP_NOT`, `OP_RETURN`, `OP_CALL_EX`
 
 **Param ops:**
 - `OP_PUSH_CONST(idx)` — push `constants[idx]`
 - `OP_JMP(offset)` — unconditional jump to absolute byte offset
 - `OP_JMP_IF_TRUE(offset)` — pop TOS, jump if truthy
 - `OP_JMP_IF_FALSE(offset)` — pop TOS, jump if falsy
-- `OP_CALL(n)` — pop n args then callable, call, push result
+- `OP_CALL(n)` — pop n positional args then callable, call, push result
+- `OP_CALL_KW(n)` — pop kwargs dict, then n positional args, then callable; call with `func(*args, **kwargs)`
 - `OP_BUILD_LIST(n)` — pop n items, push list (preserving push order)
 - `OP_BUILD_TUPLE(n)` — pop n items, push tuple (preserving push order)
 - `OP_BUILD_SET(n)` — pop n items, push set
 - `OP_BUILD_DICT(n)` — pop n interleaved key-value pairs, push dict
 - `OP_FOR_ITER(idx)` — `constants[idx]` is the loop-var name; pops iterator, assigns next value to that local and pushes True, or pushes False on exhaustion
-- `OP_MAKE_FUNCTION(idx)` — `constants[idx]` is a `FunctionSpec`; wraps it in a `SerpulaFunction` and pushes it
+- `OP_MAKE_FUNCTION(idx)` — `constants[idx]` is a `FunctionSpec`; pops `spec.n_defaults` default values off the stack, wraps everything in a `SerpulaFunction`, and pushes it
 - `OP_SUSPEND(n)` — pop n args into a tuple, save the program counter, and halt execution (see [Suspend/Resume](#suspendresume))
+
+`OP_CALL_EX` (no-param) handles calls with `*` or `**` unpacking: pops kwargs dict, args list, then callable, and calls `func(*args, **kwargs)`.
 
 **Classes:**
 - `Executable(buffer, constants)` — immutable: `buffer: bytes`, `constants: {index: value}` (already inverted by `Writer.get_executable()`; the interpreter uses it directly)
@@ -77,9 +80,9 @@ Bytecode interpreter and execution model.
 
 **`resume(runtime: Runtime, value: object) -> Runtime`** — pushes `value` onto the dstack (making it the "return value" of the suspended `suspend(...)` call) and re-enters `execute` from the saved pc.
 
-**`FunctionSpec`** — compiled function metadata stored in the constant table: `exe`, `params`, `global_names`. Uses identity-based `__hash__`/`__eq__` so it is a valid constant-table key.
+**`FunctionSpec`** — compiled function metadata stored in the constant table: `exe`, `params` (list of regular param names), `global_names`, `n_defaults` (number of trailing params that have defaults), `vararg` (name of `*args` param or `None`), `kwarg` (name of `**kwargs` param or `None`). Uses identity-based `__hash__`/`__eq__` so it is a valid constant-table key.
 
-**`SerpulaFunction`** — callable that captures a `FunctionSpec` and the current globals dict. On call, creates a fresh `Frame`, populates it with arguments, runs a nested `execute`, and returns `runtime.return_value`.
+**`SerpulaFunction`** — callable that captures a `FunctionSpec`, the current globals dict, and a `defaults` dict (param name → default value, evaluated at `def` time). On call, binds positional args, keyword args, and defaults; collects overflow positional args into `*args` and overflow keyword args into `**kwargs`; then runs a nested `execute` and returns `runtime.return_value`.
 
 At module level, `frame.locals` must be set to the same dict as `globals` before calling `execute` (so that top-level definitions are visible to functions as globals). The test harness and any other entry-point callers are responsible for this setup.
 
@@ -118,7 +121,7 @@ Tests for the `suspend`/`resume` extension (see below).
 - `pass`
 - `def` — positional, keyword, default, `*args`, and `**kwargs` parameters; `return`; implicit `return None`
 - `global` — names are routed through the globals dict in both reads and writes
-- `class` — single and multiple inheritance; methods with positional params; class variables. Compiled to `type(name, bases, namespace)`. Limitations: no decorators, no metaclasses, no `super()` without explicit args, no nested classes.
+- `class` — single and multiple inheritance; methods with full parameter support (positional, keyword, defaults, `*args`, `**kwargs`); class variables. Compiled to `type(name, bases, namespace)`. Limitations: no decorators, no metaclasses, no zero-arg `super()` (use `super(ClassName, self)` instead), no nested class definitions inside a class body.
 - Type annotations (`x: int = ...`) — annotation is parsed but ignored
 
 ### Not supported
