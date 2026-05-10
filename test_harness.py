@@ -1,7 +1,7 @@
 import ast
 from glob import glob
-from compiler import Compiler, emit_bytecode
-from vm_bytecode import execute, Runtime, Frame
+from compiler import compile
+from vm import execute
 
 
 def _run_via_python(filename: str, overrides: dict):
@@ -13,14 +13,9 @@ def _run_via_python(filename: str, overrides: dict):
 def _run_via_bytecode(filename: str, overrides: dict):
     with open(filename) as f:
         source = f.read()
-    tree = ast.parse(source, filename=filename)
-    compiler = Compiler()
-    compiler.compile(tree)
-    globals_dict = dict(overrides)
-    frame = Frame()
-    frame.locals = globals_dict
-    runtime = Runtime(exe=emit_bytecode(compiler), globals=globals_dict, frame=frame)
-    execute(runtime)
+    exe = compile(source, filename)
+    execute(exe, overrides)
+
 
 class OutputCollector:
     def __init__(self) -> None:
@@ -58,4 +53,3 @@ def run_tests():
 
 if __name__ == "__main__":
     run_tests()
-    

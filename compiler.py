@@ -14,7 +14,7 @@ from bytecode import (
     OP_SUBSCRIPT, OP_STORE_SUBSCRIPT, OP_GETATTR, OP_STORE_ATTR, OP_NEG, OP_POS, OP_NOT,
     OP_IS, OP_IS_NOT, OP_RETURN, OP_CALL_EX, OP_MAKE_FUNCTION, OP_SUSPEND, OP_CALL_KW,
 )
-from vm_bytecode import FunctionSpec
+from vm import FunctionSpec
 
 BINOP_MAP = {
     ast.Add: OP_ADD,
@@ -685,6 +685,12 @@ def emit_bytecode(compiler: Compiler) -> Executable:
         struct.pack_into(">i", writer.buffer, patch_offset, label_offsets[target_label])
 
     return writer.get_executable()
+
+def compile(source, filename="<unknown>"):
+    tree = ast.parse(source, filename=filename)
+    compiler = Compiler()
+    compiler.compile(tree)
+    return emit_bytecode(compiler)
 
 
 def main():

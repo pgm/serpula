@@ -229,7 +229,7 @@ class SerpulaFunction:
         frame = Frame(global_names=self.spec.global_names)
         frame.locals = frame_locals
         runtime = Runtime(exe=self.spec.exe, globals=self.globals_dict, frame=frame)
-        result = execute(runtime)
+        result = vm_execute_runtime(runtime)
         if result.suspended:
             raise RuntimeError("suspend inside a call from native Python is not supported")
         return result.return_value
@@ -242,7 +242,7 @@ def _unwrap_method(func, args):
     return func, args
 
 
-def execute(runtime: Runtime) -> Runtime:
+def vm_execute_runtime(runtime: Runtime) -> Runtime:
     runtime.suspended = False
 
     cur_exe = runtime._suspended_exe if runtime._suspended_exe is not None else runtime.exe
@@ -517,4 +517,12 @@ def resume(runtime: Runtime, value: object) -> Runtime:
     if not runtime.suspended:
         raise RuntimeError("cannot resume a runtime that is not suspended")
     runtime.frame.dstack.append(value)
-    return execute(runtime)
+    return vm_execute_runtime(runtime)
+
+
+def execute(exe, overrides: dict):
+    globals_dict = dict(overrides)
+    frame = Frame()
+    frame.locals = globals_dict
+    runtime = Runtime(exe=exe, globals=globals_dict, frame=frame)
+    return vm_execute_runtime(runtime)
