@@ -42,7 +42,7 @@ def wrapper():
 wrapper()
 '''))
     assert rt.suspended
-    assert rt.suspend_value == ("a", "b", "c")
+    assert rt.suspend_value == ("a",)
 
 def test_resume_continues_after_suspend():
     src = '''

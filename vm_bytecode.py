@@ -1,4 +1,5 @@
 import struct
+import types as _types
 from dataclasses import dataclass, field
 from typing import Optional
 
@@ -145,6 +146,11 @@ class Runtime:
     suspended: bool = False
     suspend_value: object = None
     return_value: object = None
+    # Internal state for suspend/resume across nested calls.
+    # Each entry: (exe, pc, dstack, locals_, global_names, globals_dict)
+    _saved_frames: list = field(default_factory=list)
+    # The exe that was active when we suspended (may differ from self.exe for nested calls).
+    _suspended_exe: Optional[Executable] = None
 
     def __post_init__(self):
         self.globals.setdefault('__builtins__', default_builtins)
@@ -169,6 +175,42 @@ class FunctionSpec:
         return self is other
 
 
+def _bind_args(sf: 'SerpulaFunction', args, kwargs) -> dict:
+    """Build the locals dict for a SerpulaFunction call."""
+    spec = sf.spec
+    params = spec.params
+    vararg = spec.vararg
+    kwarg_name = spec.kwarg
+    frame_locals: dict = {}
+    for name, val in zip(params, args):
+        frame_locals[name] = val
+    extra_pos = args[len(params):]
+    if extra_pos and vararg is None:
+        raise TypeError("too many positional arguments")
+    if vararg is not None:
+        frame_locals[vararg] = tuple(extra_pos)
+    param_set = set(params)
+    extra_kwargs: dict = {}
+    for name, val in kwargs.items():
+        if name in param_set:
+            if name in frame_locals:
+                raise TypeError(f"got multiple values for argument '{name}'")
+            frame_locals[name] = val
+        elif kwarg_name is not None:
+            extra_kwargs[name] = val
+        else:
+            raise TypeError(f"unexpected keyword argument '{name}'")
+    if kwarg_name is not None:
+        frame_locals[kwarg_name] = extra_kwargs
+    for name, val in sf.defaults.items():
+        if name not in frame_locals:
+            frame_locals[name] = val
+    for name in params:
+        if name not in frame_locals:
+            raise TypeError(f"missing required argument '{name}'")
+    return frame_locals
+
+
 class SerpulaFunction:
     def __init__(self, spec: FunctionSpec, globals_dict: dict, defaults: dict):
         self.spec = spec
@@ -178,60 +220,46 @@ class SerpulaFunction:
     def __get__(self, obj, objtype=None):
         if obj is None:
             return self
-        import types
-        return types.MethodType(self, obj)
+        return _types.MethodType(self, obj)
 
     def __call__(self, *args, **kwargs):
-        params = self.spec.params
-        vararg = self.spec.vararg
-        kwarg_name = self.spec.kwarg
-        frame_locals: dict = {}
-        # bind positional args to regular params
-        for name, val in zip(params, args):
-            frame_locals[name] = val
-        # extra positional args go to *args
-        extra_pos = args[len(params):]
-        if extra_pos and vararg is None:
-            raise TypeError(f"too many positional arguments")
-        if vararg is not None:
-            frame_locals[vararg] = tuple(extra_pos)
-        # bind keyword args
-        param_set = set(params)
-        extra_kwargs: dict = {}
-        for name, val in kwargs.items():
-            if name in param_set:
-                if name in frame_locals:
-                    raise TypeError(f"got multiple values for argument '{name}'")
-                frame_locals[name] = val
-            elif kwarg_name is not None:
-                extra_kwargs[name] = val
-            else:
-                raise TypeError(f"unexpected keyword argument '{name}'")
-        if kwarg_name is not None:
-            frame_locals[kwarg_name] = extra_kwargs
-        for name, val in self.defaults.items():
-            if name not in frame_locals:
-                frame_locals[name] = val
-        for name in params:
-            if name not in frame_locals:
-                raise TypeError(f"missing required argument '{name}'")
+        """Fallback for calls originating from Python (e.g. sorted(..., key=f)).
+        Suspend inside such calls is not supported."""
+        frame_locals = _bind_args(self, args, kwargs)
         frame = Frame(global_names=self.spec.global_names)
         frame.locals = frame_locals
         runtime = Runtime(exe=self.spec.exe, globals=self.globals_dict, frame=frame)
         result = execute(runtime)
         if result.suspended:
-            raise RuntimeError("suspend inside a nested function call is not supported")
+            raise RuntimeError("suspend inside a call from native Python is not supported")
         return result.return_value
+
+
+def _unwrap_method(func, args):
+    """If func is a MethodType wrapping a SerpulaFunction, prepend self and unwrap."""
+    if isinstance(func, _types.MethodType) and isinstance(func.__func__, SerpulaFunction):
+        return func.__func__, [func.__self__] + list(args)
+    return func, args
 
 
 def execute(runtime: Runtime) -> Runtime:
     runtime.suspended = False
-    buf = runtime.exe.buffer
-    constants = runtime.exe.constants  # already {index: value}
+
+    cur_exe = runtime._suspended_exe if runtime._suspended_exe is not None else runtime.exe
+    runtime._suspended_exe = None
+
+    buf = cur_exe.buffer
+    constants = cur_exe.constants
     dstack = runtime.frame.dstack
     locals_ = runtime.frame.locals
-
+    global_names = runtime.frame.global_names
+    globals_dict = runtime.globals
     pc = runtime.pc
+
+    # Restore saved call stack (populated when a previous execute suspended mid-call).
+    call_stack = runtime._saved_frames  # list of (exe, pc, dstack, locals_, global_names, globals_dict)
+    runtime._saved_frames = []
+
     while True:
         op = buf[pc]
         pc += 1
@@ -252,30 +280,43 @@ def execute(runtime: Runtime) -> Runtime:
         if op == OP_TERMINATE:
             break
         elif op == OP_RETURN:
-            runtime.return_value = dstack.pop()
-            break
+            ret_val = dstack.pop()
+            if call_stack:
+                cur_exe, pc, dstack, locals_, global_names, globals_dict = call_stack.pop()
+                buf = cur_exe.buffer
+                constants = cur_exe.constants
+                dstack.append(ret_val)
+            else:
+                runtime.return_value = ret_val
+                break
         elif op == OP_SUSPEND:
             args = [dstack.pop() for _ in range(param)]
             args.reverse()
             runtime.suspend_value = tuple(args)
             runtime.suspended = True
+            runtime.pc = pc
+            runtime._suspended_exe = cur_exe
+            runtime.frame.dstack = dstack
+            runtime.frame.locals = locals_
+            runtime.frame.global_names = global_names
+            runtime._saved_frames = call_stack
             break
         elif op == OP_PUSH_CONST:
             dstack.append(constants[param])
         elif op == OP_GET:
             name = dstack.pop()
-            _builtins_ns = runtime.globals['__builtins__']
-            if name in runtime.frame.global_names:
-                if name in runtime.globals:
-                    dstack.append(runtime.globals[name])
+            _builtins_ns = globals_dict['__builtins__']
+            if name in global_names:
+                if name in globals_dict:
+                    dstack.append(globals_dict[name])
                 elif isinstance(_builtins_ns, dict):
                     dstack.append(_builtins_ns[name])
                 else:
                     dstack.append(getattr(_builtins_ns, name))
             elif name in locals_:
                 dstack.append(locals_[name])
-            elif name in runtime.globals:
-                dstack.append(runtime.globals[name])
+            elif name in globals_dict:
+                dstack.append(globals_dict[name])
             elif isinstance(_builtins_ns, dict):
                 dstack.append(_builtins_ns[name])
             else:
@@ -283,8 +324,8 @@ def execute(runtime: Runtime) -> Runtime:
         elif op == OP_STORE:
             value = dstack.pop()
             name = dstack.pop()
-            if name in runtime.frame.global_names:
-                runtime.globals[name] = value
+            if name in global_names:
+                globals_dict[name] = value
             else:
                 locals_[name] = value
         elif op == OP_POP:
@@ -381,7 +422,54 @@ def execute(runtime: Runtime) -> Runtime:
             args = [dstack.pop() for _ in range(param)]
             args.reverse()
             func = dstack.pop()
-            dstack.append(func(*args))
+            func, args = _unwrap_method(func, args)
+            if isinstance(func, SerpulaFunction):
+                call_stack.append((cur_exe, pc, dstack, locals_, global_names, globals_dict))
+                cur_exe = func.spec.exe
+                buf = cur_exe.buffer
+                constants = cur_exe.constants
+                pc = 0
+                dstack = []
+                locals_ = _bind_args(func, args, {})
+                global_names = func.spec.global_names
+                globals_dict = func.globals_dict
+            else:
+                dstack.append(func(*args))
+        elif op == OP_CALL_KW:
+            kwargs = dstack.pop()
+            args = [dstack.pop() for _ in range(param)]
+            args.reverse()
+            func = dstack.pop()
+            func, args = _unwrap_method(func, args)
+            if isinstance(func, SerpulaFunction):
+                call_stack.append((cur_exe, pc, dstack, locals_, global_names, globals_dict))
+                cur_exe = func.spec.exe
+                buf = cur_exe.buffer
+                constants = cur_exe.constants
+                pc = 0
+                dstack = []
+                locals_ = _bind_args(func, args, kwargs)
+                global_names = func.spec.global_names
+                globals_dict = func.globals_dict
+            else:
+                dstack.append(func(*args, **kwargs))
+        elif op == OP_CALL_EX:
+            kwargs = dstack.pop()
+            args = list(dstack.pop())
+            func = dstack.pop()
+            func, args = _unwrap_method(func, args)
+            if isinstance(func, SerpulaFunction):
+                call_stack.append((cur_exe, pc, dstack, locals_, global_names, globals_dict))
+                cur_exe = func.spec.exe
+                buf = cur_exe.buffer
+                constants = cur_exe.constants
+                pc = 0
+                dstack = []
+                locals_ = _bind_args(func, args, kwargs)
+                global_names = func.spec.global_names
+                globals_dict = func.globals_dict
+            else:
+                dstack.append(func(*args, **kwargs))
         elif op == OP_SUBSCRIPT:
             key = dstack.pop()
             dstack.append(dstack.pop()[key])
@@ -417,18 +505,7 @@ def execute(runtime: Runtime) -> Runtime:
                 vals.reverse()
                 default_params = spec.params[len(spec.params) - spec.n_defaults:]
                 defaults = dict(zip(default_params, vals))
-            dstack.append(SerpulaFunction(spec, runtime.globals, defaults))
-        elif op == OP_CALL_EX:
-            kwargs = dstack.pop()
-            args = dstack.pop()
-            func = dstack.pop()
-            dstack.append(func(*args, **kwargs))
-        elif op == OP_CALL_KW:
-            kwargs = dstack.pop()
-            args = [dstack.pop() for _ in range(param)]
-            args.reverse()
-            func = dstack.pop()
-            dstack.append(func(*args, **kwargs))
+            dstack.append(SerpulaFunction(spec, globals_dict, defaults))
         else:
             raise RuntimeError(f"Unknown opcode {op} at pc={pc - 1}")
 
