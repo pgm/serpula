@@ -337,8 +337,6 @@ class Compiler:
                 kwarg = args.kwarg.arg if args.kwarg else None
                 n_defaults = len(args.defaults)
                 global_names = _collect_globals(stmt.body)
-                for default_node in args.defaults:
-                    self.emit_expr(default_node)
                 func_compiler = Compiler()
                 func_terminate_label = func_compiler.alloc_label()
                 func_compiler.compile_stmts(stmt.body, func_terminate_label)
@@ -351,6 +349,8 @@ class Compiler:
                 self._instr('push_const', ns_var)
                 self._instr(OP_GET)
                 self._instr('push_const', stmt.name)
+                for default_node in args.defaults:
+                    self.emit_expr(default_node)
                 self._instr('make_function', spec)
                 self._instr(OP_STORE_SUBSCRIPT)
             elif isinstance(stmt, (ast.Assign, ast.AnnAssign)):
@@ -549,9 +549,6 @@ class Compiler:
                 kwarg = args.kwarg.arg if args.kwarg else None
                 n_defaults = len(args.defaults)
                 global_names = _collect_globals(stmt.body)
-                # emit default expressions before make_function so VM can pop them
-                for default_node in args.defaults:
-                    self.emit_expr(default_node)
                 func_compiler = Compiler()
                 func_terminate_label = func_compiler.alloc_label()
                 func_compiler.compile_stmts(stmt.body, func_terminate_label)
@@ -561,6 +558,8 @@ class Compiler:
                 func_exe = emit_bytecode(func_compiler)
                 spec = FunctionSpec(func_exe, params, global_names, n_defaults, vararg, kwarg)
                 self._instr('push_const', stmt.name)
+                for default_node in args.defaults:
+                    self.emit_expr(default_node)
                 self._instr('make_function', spec)
                 self._instr(OP_STORE)
             elif isinstance(stmt, ast.Return):

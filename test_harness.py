@@ -55,3 +55,6 @@ def run_tests():
             log.exception(f"test failed: {filename}")
             failed_count += 1
     print(f"{success_count} examples succeeded, {failed_count} failed")
+
+if __name__ == "__main__":
+    run_tests()
