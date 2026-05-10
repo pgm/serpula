@@ -175,6 +175,12 @@ class SerpulaFunction:
         self.globals_dict = globals_dict
         self.defaults = defaults  # {param_name: default_value}, evaluated at def time
 
+    def __get__(self, obj, objtype=None):
+        if obj is None:
+            return self
+        import types
+        return types.MethodType(self, obj)
+
     def __call__(self, *args, **kwargs):
         params = self.spec.params
         vararg = self.spec.vararg
